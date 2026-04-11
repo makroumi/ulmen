@@ -1,0 +1,48 @@
+# Rust build artifacts
+target/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Coverage
+.coverage
+*.cover
+htmlcov/
+
+# Benchmarks
+.benchmarks/
+
+# Large data files
+*.csv
+
+# Backup files
+*.bak
+*.bak2
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Maturin / wheel builds
+*.whl
+*.cover
+*.so

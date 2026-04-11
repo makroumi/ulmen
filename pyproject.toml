@@ -1,0 +1,80 @@
+[build-system]
+requires      = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name        = "lumen"
+version     = "1.0.0"
+description = "LUMEN: The number one serialization format across size, tokens, speed, and memory"
+readme      = "README.md"
+license     = { text = "Apache-2.0" }
+requires-python = ">=3.8"
+keywords    = ["serialization", "binary", "encoding", "compression", "rust"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: System :: Archiving :: Compression",
+]
+
+[project.optional-dependencies]
+dev = [
+    "maturin>=1.4,<2.0",
+    "pytest",
+    "pytest-cov",
+    "pytest-benchmark",
+    "ruff",
+    "mypy",
+]
+
+[project.urls]
+Homepage   = "https://github.com/makroumi/lumen"
+Repository = "https://github.com/makroumi/lumen"
+Issues     = "https://github.com/makroumi/lumen/issues"
+
+[tool.maturin]
+python-source = "."
+module-name   = "lumen._lumen_rust"
+features      = ["pyo3/extension-module"]
+exclude       = [
+    "*.csv",
+    "*.coverage",
+    ".benchmarks/**",
+    "tests/**",
+    "docs/**",
+    ".github/**",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts   = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["lumen"]
+omit   = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+line-length    = 100
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version      = "3.8"
+warn_return_any     = true
+warn_unused_configs = true
+ignore_missing_imports = true

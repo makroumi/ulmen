@@ -1,0 +1,4 @@
+# LUMEN v1 Binary Format
+MAGIC: 0x4C554D42 "LUMB"
+VERSION: 0x0303
+...
