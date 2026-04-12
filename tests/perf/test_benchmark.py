@@ -15,8 +15,6 @@ import pickle
 import time
 from typing import Callable
 
-import pytest
-
 from lumen import (
     RUST_AVAILABLE,
     LumenDictRust,
@@ -113,7 +111,7 @@ class TestSizeMeasurements:
             return f"{100 * x / json_bytes:.1f}%"
 
         print("\n" + "=" * 60)
-        print(f"LUMEN V1 — Size Benchmark (n=1,000 records)")
+        print("LUMEN V1 — Size Benchmark (n=1,000 records)")
         print("=" * 60)
         print(f"{'Format':<28} {'Bytes':>10} {'vs JSON':>10}")
         print("-" * 60)
@@ -209,7 +207,7 @@ class TestSpeedMeasurements:
             t_rs_bin_dec = t_rs_lumia_dec = 0.0
 
         print("\n" + "=" * 60)
-        print(f"LUMEN V1 — Speed Benchmark (n=1,000 records, median 50 runs)")
+        print("LUMEN V1 — Speed Benchmark (n=1,000 records, median 50 runs)")
         print("=" * 60)
         print(f"{'Format':<32} {'Encode ms':>12} {'Decode ms':>12}")
         print("-" * 60)
