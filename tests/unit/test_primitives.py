@@ -9,25 +9,47 @@ Unit tests for low-level primitives in lumen.core:
 """
 import math
 import struct
+
 import pytest
 
 from lumen.core import (
-    T_STR_TINY, T_STR, T_INT, T_FLOAT, T_BOOL, T_NULL,
-    T_POOL_REF, T_BITS, T_DELTA_RAW, T_RLE,
-    fnv1a, fnv1a_str,
+    T_BITS,
+    T_BOOL,
+    T_DELTA_RAW,
+    T_FLOAT,
+    T_INT,
+    T_NULL,
+    T_POOL_REF,
+    T_RLE,
+    T_STR,
+    T_STR_TINY,
+    _encode_obj_iterative_text,
+    _encode_value_text,
+    _format_float,
+    _parse_value,
+    _text_escape,
+    _text_unescape,
+    decode_varint,
+    decode_zigzag,
+    deep_eq,
+    deep_size,
+    encode_varint,
+    encode_zigzag,
     estimate_tokens,
-    deep_size, deep_eq,
-    encode_varint, decode_varint,
-    encode_zigzag, decode_zigzag,
-    pack_string, pack_int, pack_float, pack_bool, pack_null,
-    pack_pool_ref, pack_bits, unpack_bits,
-    pack_delta_raw, unpack_delta_raw,
+    fnv1a,
+    fnv1a_str,
+    pack_bits,
+    pack_bool,
+    pack_delta_raw,
+    pack_float,
+    pack_int,
+    pack_null,
+    pack_pool_ref,
     pack_rle,
-    _text_escape, _text_unescape,
-    _format_float, _parse_value,
-    _encode_value_text, _encode_obj_iterative_text,
+    pack_string,
+    unpack_bits,
+    unpack_delta_raw,
 )
-
 
 # ===========================================================================
 # Constants
@@ -40,7 +62,7 @@ class TestConstants:
 
     def test_version_bytes(self):
         from lumen.core import VERSION
-        assert VERSION == bytes([3, 3])
+        assert bytes([3, 3]) == VERSION
 
     def test_version_string(self):
         from lumen.core import __version__
@@ -55,12 +77,12 @@ class TestConstants:
             T_STR_TINY, T_STR, T_INT, T_FLOAT, T_BOOL, T_NULL,
             T_POOL_REF, T_BITS, T_DELTA_RAW, T_RLE,
         ]
-        from lumen.core import T_LIST, T_MAP, T_POOL_DEF, T_MATRIX, T_STRATEGY
+        from lumen.core import T_LIST, T_MAP, T_MATRIX, T_POOL_DEF, T_STRATEGY
         tags += [T_LIST, T_MAP, T_POOL_DEF, T_MATRIX, T_STRATEGY]
         assert len(tags) == len(set(tags))
 
     def test_strategy_bytes_distinct(self):
-        from lumen.core import S_RAW, S_DELTA, S_RLE, S_BITS, S_POOL
+        from lumen.core import S_BITS, S_DELTA, S_POOL, S_RAW, S_RLE
         vals = [S_RAW, S_DELTA, S_RLE, S_BITS, S_POOL]
         assert len(vals) == len(set(vals))
 
@@ -73,7 +95,7 @@ class TestConstants:
         assert T_NULL     == 0x06
 
     def test_strategy_bytes_values(self):
-        from lumen.core import S_RAW, S_DELTA, S_RLE, S_BITS, S_POOL
+        from lumen.core import S_BITS, S_DELTA, S_POOL, S_RAW, S_RLE
         assert S_RAW   == 0x00
         assert S_DELTA == 0x01
         assert S_RLE   == 0x02
@@ -106,7 +128,7 @@ class TestFnv1a:
         assert isinstance(result, int)
 
     def test_fnv1a_str_matches_bytes(self):
-        assert fnv1a_str('hello') == fnv1a('hello'.encode())
+        assert fnv1a_str('hello') == fnv1a(b'hello')
 
     def test_fnv1a_str_unicode(self):
         s = '日本語'

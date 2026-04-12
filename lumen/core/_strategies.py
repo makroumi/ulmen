@@ -9,7 +9,7 @@ for measuring how much each strategy saves.
 from collections import Counter
 from typing import Any
 
-from lumen.core._primitives import encode_zigzag, pack_delta_raw, pack_bits, pack_rle
+from lumen.core._primitives import encode_zigzag, pack_bits, pack_delta_raw, pack_rle
 
 
 def detect_column_strategy(values: list) -> str:

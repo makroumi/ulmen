@@ -4,17 +4,14 @@ Unit tests for column strategy detection and savings computation:
   - compute_delta_savings / compute_rle_savings / compute_bits_savings
   - build_pool
 """
-import pytest
 
 from lumen.core import (
-    detect_column_strategy,
+    build_pool,
+    compute_bits_savings,
     compute_delta_savings,
     compute_rle_savings,
-    compute_bits_savings,
-    build_pool,
-    encode_zigzag,
+    detect_column_strategy,
 )
-
 
 # ===========================================================================
 # detect_column_strategy

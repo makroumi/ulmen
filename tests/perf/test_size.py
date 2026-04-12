@@ -5,11 +5,14 @@ on realistic 1 000-record datasets.
 """
 import pytest
 
+from lumen import LumenDictRust
 from lumen.core import LumenDict, LumenDictFull
-from lumen import LumenDictRust, LumenDictFullRust
 from tests.conftest import (
+    csv_size,
+    json_size,
     make_record,
-    json_size, pickle_size, csv_size, toml_size,
+    pickle_size,
+    toml_size,
 )
 
 

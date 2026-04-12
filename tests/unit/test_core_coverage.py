@@ -4,29 +4,35 @@ Targeted branch-coverage tests for uncovered lines in lumen/core.py.
 Each test class is labelled with the exact line numbers it targets.
 Sole purpose: drive lumen/core.py to 100% coverage.
 """
-import pytest
 
 from lumen.core import (
     # constants
-    MAGIC, VERSION,
-    T_STR_TINY, T_STR, T_INT, T_FLOAT, T_BOOL, T_NULL,
-    T_LIST, T_MAP, T_POOL_DEF, T_POOL_REF, T_MATRIX,
-    T_BITS, T_DELTA_RAW, T_RLE,
-    S_BITS, S_DELTA, S_RLE, S_POOL, S_RAW,
-    # primitives
-    encode_varint, decode_varint,
-    encode_zigzag, decode_zigzag,
-    pack_string, pack_bool, pack_int, pack_float, pack_null,
-    pack_bits, pack_delta_raw, pack_rle,
-    unpack_bits, unpack_delta_raw,
-    # encoders / decoders
-    build_pool,
-    encode_text_records, decode_text_records,
-    encode_binary_records, decode_binary_records,
+    MAGIC,
+    S_BITS,
+    S_DELTA,
+    S_RAW,
+    S_RLE,
+    T_BOOL,
+    T_INT,
+    T_LIST,
+    T_MAP,
+    T_MATRIX,
+    T_RLE,
+    T_STR_TINY,
+    VERSION,
     # classes
     LumenDict,
+    decode_binary_records,
+    decode_text_records,
+    encode_binary_records,
+    # primitives
+    encode_varint,
+    encode_zigzag,
+    pack_bits,
+    pack_delta_raw,
+    pack_rle,
+    pack_string,
 )
-
 
 # ---------------------------------------------------------------------------
 # L481 — pack_bool branch inside pack_rle

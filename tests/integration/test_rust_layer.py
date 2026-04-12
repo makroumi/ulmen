@@ -4,10 +4,10 @@ All tests run regardless of whether Rust is compiled — the Python shim
 satisfies the same interface contract.
 """
 import pytest
-from lumen.core import LumenDict, LumenDictFull, decode_binary_records, MAGIC
-from lumen import LumenDictRust, LumenDictFullRust, RUST_AVAILABLE
-from tests.conftest import make_record, RustShim
 
+from lumen import RUST_AVAILABLE, LumenDictFullRust, LumenDictRust
+from lumen.core import MAGIC, LumenDict, LumenDictFull, decode_binary_records
+from tests.conftest import RustShim, make_record
 
 # ===========================================================================
 # Interface contract (both Rust and shim must satisfy)

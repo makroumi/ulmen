@@ -2,17 +2,16 @@
 Integration edge case tests: boundary values, special types, nulls, unicode,
 large/small record shapes.
 """
-import math
-import pytest
 
-from lumen.core import (
-    LumenDict, LumenDictFull,
-    encode_text_records, decode_text_records,
-    encode_binary_records, decode_binary_records,
-    build_pool, MAGIC,
-)
 from lumen import LumenDictRust
-
+from lumen.core import (
+    MAGIC,
+    build_pool,
+    decode_binary_records,
+    decode_text_records,
+    encode_binary_records,
+    encode_text_records,
+)
 
 # ===========================================================================
 # Empty inputs

@@ -3,18 +3,17 @@ Shared fixtures and test helpers for the Lumen test suite.
 """
 import json
 import pickle
+
 import pytest
 
+from lumen import (
+    LumenDictFullRust,
+    LumenDictRust,
+)
 from lumen.core import (
     LumenDict,
     LumenDictFull,
 )
-from lumen import (
-    LumenDictRust,
-    LumenDictFullRust,
-    RUST_AVAILABLE,
-)
-
 
 # ---------------------------------------------------------------------------
 # Helper classes (used as test data in unit/integration tests)
@@ -128,7 +127,8 @@ def pickle_size(records: list) -> int:
 
 
 def csv_size(records: list) -> int:
-    import csv, io
+    import csv
+    import io
     if not records or not isinstance(records[0], dict):
         return 0
     buf = io.StringIO()
@@ -141,7 +141,7 @@ def csv_size(records: list) -> int:
 def toml_size(records: list) -> int:
     lines = []
     for i, r in enumerate(records):
-        lines.append(f'[[record]]')
+        lines.append('[[record]]')
         for k, v in r.items():
             if isinstance(v, str):
                 lines.append(f'{k} = "{v}"')

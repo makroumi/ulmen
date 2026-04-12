@@ -2,23 +2,41 @@
 Tests for lumen.core._lumen_llm — 100% coverage target.
 """
 import math
+
 import pytest
 
 from lumen.core._lumen_llm import (
-    encode_lumen_llm, decode_lumen_llm,
-    LUMEN_LLM_MAGIC,
-    _encode_val, _encode_nested_dict, _encode_nested_list,
-    _needs_quoting, _row_is_plain,
-    _split_rows_quoted, _parse_row_slow,
-    _decode_val_generic, _decode_val_unquoted,
-    _decode_nested_dict, _decode_nested_list,
-    _split_top_level, _find_top_level_char,
-    _read_balanced, _split_simple,
-    _enc_d, _enc_f, _enc_b, _enc_n, _enc_s,
-    _dec_d, _dec_f, _dec_b, _dec_n, _dec_s, _dec_m,
-    _type_char, _build_decoders,
+    _build_decoders,
+    _dec_b,
+    _dec_d,
+    _dec_f,
+    _dec_m,
+    _dec_n,
+    _dec_s,
+    _decode_nested_dict,
+    _decode_nested_list,
+    _decode_val_generic,
+    _decode_val_unquoted,
+    _enc_b,
+    _enc_d,
+    _enc_f,
+    _enc_n,
+    _enc_s,
+    _encode_nested_dict,
+    _encode_nested_list,
+    _encode_val,
+    _find_top_level_char,
+    _needs_quoting,
+    _parse_row_slow,
+    _read_balanced,
+    _row_is_plain,
+    _split_rows_quoted,
+    _split_simple,
+    _split_top_level,
+    _type_char,
+    decode_lumen_llm,
+    encode_lumen_llm,
 )
-
 
 # ---------------------------------------------------------------------------
 # _needs_quoting
@@ -691,10 +709,8 @@ class TestCorePyShim:
     """Cover lumen/core.py shim — 0% coverage."""
 
     def test_core_py_imports(self):
-        import lumen.core
         # Importing lumen.core.py shim via the module path
         import importlib.util
-        import sys
         # force import of lumen/core.py (not the package)
         spec = importlib.util.spec_from_file_location(
             "lumen_core_shim",
@@ -710,7 +726,7 @@ class TestInitMissingCoverage:
     """Cover lumen/__init__.py lines 184,188 — Rust encode/decode_lumen_llm."""
 
     def test_encode_lumen_llm_via_init(self):
-        from lumen import encode_lumen_llm, RUST_AVAILABLE
+        from lumen import encode_lumen_llm
         records = [{"id": 1, "name": "Alice"}]
         result = encode_lumen_llm(records)
         assert result.startswith("L|")

@@ -11,8 +11,9 @@ Rust acceleration layer to be added in v1.1.
 """
 
 from __future__ import annotations
-from typing import Any
+
 import math
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Constants

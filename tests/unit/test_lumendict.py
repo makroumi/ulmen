@@ -2,18 +2,15 @@
 Unit tests for the LumenDict and LumenDictFull public API.
 """
 import json
-import math
+
 import pytest
 
+from lumen import RUST_AVAILABLE, LumenDictFullRust, LumenDictRust
 from lumen.core import (
+    MAGIC,
     LumenDict,
     LumenDictFull,
-    decode_text_records,
-    decode_binary_records,
-    MAGIC,
 )
-from lumen import LumenDictRust, LumenDictFullRust, RUST_AVAILABLE
-
 
 # ===========================================================================
 # LumenDict construction
@@ -43,7 +40,7 @@ class TestLumenDictConstruction:
 
     def test_version_attr(self):
         from lumen.core import __version__
-        assert LumenDict.VERSION == __version__
+        assert __version__ == LumenDict.VERSION
 
     def test_optimizations_false_by_default(self):
         ld = LumenDict([{'a': 1}])
@@ -465,9 +462,9 @@ class TestDecodeBinaryNotList:
         # api line 158: if not isinstance(decoded, list) branch
         # This happens when decode_binary_records returns a non-list
         # We mock it to return a dict directly
-        from lumen.core._api import LumenDict
-        from lumen.core import encode_binary_records, decode_binary_records
         import unittest.mock as mock
+
+        from lumen.core._api import LumenDict
 
         ld = LumenDict([{"id": 1}])
         binary = ld.encode_binary_pooled()

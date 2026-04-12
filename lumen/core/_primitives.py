@@ -22,11 +22,17 @@ import struct
 from typing import Tuple
 
 from lumen.core._constants import (
-    T_STR_TINY, T_STR,
-    T_INT, T_FLOAT, T_BOOL, T_NULL,
-    T_POOL_REF, T_BITS, T_DELTA_RAW, T_RLE,
+    T_BITS,
+    T_BOOL,
+    T_DELTA_RAW,
+    T_FLOAT,
+    T_INT,
+    T_NULL,
+    T_POOL_REF,
+    T_RLE,
+    T_STR,
+    T_STR_TINY,
 )
-
 
 # ---------------------------------------------------------------------------
 # Varint -- variable-length unsigned integer encoding

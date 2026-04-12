@@ -5,24 +5,30 @@ Unit tests for the text and binary encoder/decoder pipeline:
   - Internal branch coverage for both decoders
 """
 import math
-import struct
+
 import pytest
 
 from lumen.core import (
-    MAGIC, VERSION,
-    T_LIST, T_MAP, T_POOL_DEF, T_MATRIX,
-    T_BITS, T_DELTA_RAW, T_RLE, T_STR, T_STR_TINY,
-    T_INT, T_FLOAT, T_BOOL, T_NULL, T_POOL_REF,
-    S_BITS, S_DELTA, S_RLE, S_POOL, S_RAW,
-    encode_varint, decode_varint,
-    encode_zigzag,
-    pack_string, pack_bits, pack_delta_raw, pack_rle,
-    pack_bool, pack_null, pack_int, pack_float,
-    encode_text_records, decode_text_records,
-    encode_binary_records, decode_binary_records,
+    MAGIC,
+    T_BITS,
+    T_DELTA_RAW,
+    T_INT,
+    T_LIST,
+    T_MAP,
+    T_MATRIX,
+    T_POOL_DEF,
+    T_POOL_REF,
+    T_RLE,
+    T_STR_TINY,
+    VERSION,
     build_pool,
+    decode_binary_records,
+    decode_text_records,
+    encode_binary_records,
+    encode_text_records,
+    encode_varint,
+    encode_zigzag,
 )
-
 
 # ===========================================================================
 # encode_text_records
@@ -679,7 +685,7 @@ class TestBinaryEncodeValueMissing:
     """Cover _encode_value_binary list/tuple/dict/fallback branches."""
 
     def test_encode_list_value(self):
-        from lumen.core._binary import encode_binary_records, decode_binary_records
+        from lumen.core._binary import decode_binary_records, encode_binary_records
         records = [[1, 2, 3]]
         pool, pool_map = [], {}
         enc = encode_binary_records(records, pool, pool_map)
@@ -687,7 +693,7 @@ class TestBinaryEncodeValueMissing:
         assert dec == [[1, 2, 3]]
 
     def test_encode_tuple_value(self):
-        from lumen.core._binary import encode_binary_records, decode_binary_records
+        from lumen.core._binary import decode_binary_records, encode_binary_records
         records = [(1, 2)]
         pool, pool_map = [], {}
         enc = encode_binary_records(records, pool, pool_map)
@@ -695,7 +701,7 @@ class TestBinaryEncodeValueMissing:
         assert dec == [[1, 2]]
 
     def test_encode_nested_dict_value(self):
-        from lumen.core._binary import encode_binary_records, decode_binary_records
+        from lumen.core._binary import decode_binary_records, encode_binary_records
         records = [{"meta": {"k": "v"}}]
         pool, pool_map = [], {}
         enc = encode_binary_records(records, pool, pool_map)

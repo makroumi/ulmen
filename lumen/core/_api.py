@@ -16,11 +16,11 @@ import math
 import zlib
 from typing import Any
 
-from lumen.core._utils import __version__
+from lumen.core._binary import decode_binary_records, encode_binary_records
+from lumen.core._lumen_llm import decode_lumen_llm, encode_lumen_llm
 from lumen.core._strategies import build_pool
-from lumen.core._text import encode_text_records, decode_text_records
-from lumen.core._binary import encode_binary_records, decode_binary_records
-from lumen.core._lumen_llm import encode_lumen_llm, decode_lumen_llm
+from lumen.core._text import decode_text_records, encode_text_records
+from lumen.core._utils import __version__
 
 
 class LumenDict:

@@ -9,7 +9,6 @@ import math
 import sys
 from typing import Any
 
-
 __version__ = "1.0.0"
 __edition__ = "Lumex Ultra Absolute #1"
 

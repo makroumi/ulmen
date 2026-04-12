@@ -21,7 +21,7 @@ Type hint characters:
 """
 
 import math
-from typing import Any, List, Tuple
+from typing import Any
 
 LUMEN_LLM_MAGIC  = "L|"
 _EMPTY_DICT_TOK  = "{}"

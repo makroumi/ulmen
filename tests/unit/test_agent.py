@@ -2,18 +2,31 @@
 Tests for lumen.core._agent — 100% coverage target.
 """
 import math
+
 import pytest
 
 from lumen.core._agent import (
-    _encode_field, _decode_field, _split_row,
-    encode_agent_record, decode_agent_record,
-    encode_agent_payload, decode_agent_payload,
-    validate_agent_payload, make_validation_error,
-    extract_subgraph, extract_subgraph_payload,
-    AGENT_MAGIC, AGENT_VERSION, RECORD_TYPES, FIELD_COUNTS,
-    _has_unsafe, NULL_TOK, TRUE_TOK, FALSE_TOK, EMPTY_TOK,
+    AGENT_MAGIC,
+    AGENT_VERSION,
+    EMPTY_TOK,
+    FALSE_TOK,
+    FIELD_COUNTS,
+    NULL_TOK,
+    RECORD_TYPES,
+    TRUE_TOK,
+    _decode_field,
+    _encode_field,
+    _has_unsafe,
+    _split_row,
+    decode_agent_payload,
+    decode_agent_record,
+    encode_agent_payload,
+    encode_agent_record,
+    extract_subgraph,
+    extract_subgraph_payload,
+    make_validation_error,
+    validate_agent_payload,
 )
-
 
 # ---------------------------------------------------------------------------
 # _has_unsafe
@@ -658,7 +671,7 @@ class TestFinalCoverage:
         # agent line 229: if not fields -> ValueError("Empty row")
         # _split_row("") returns [""] which is truthy but rtype="" not in _SCHEMAS
         # We need to patch to get truly empty list — test via empty string edge
-        from lumen.core._agent import _split_row, decode_agent_record
+        from lumen.core._agent import decode_agent_record
         # An all-pipe row that produces empty first field
         with pytest.raises(ValueError):
             decode_agent_record("")

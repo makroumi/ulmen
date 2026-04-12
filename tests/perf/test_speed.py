@@ -4,10 +4,11 @@ budgets (CI-safe). Not a micro-benchmark — just ensures nothing is
 catastrophically slow.
 """
 import time
+
 import pytest
 
-from lumen.core import LumenDict, LumenDictFull
-from lumen import LumenDictRust, RUST_AVAILABLE
+from lumen import RUST_AVAILABLE, LumenDictRust
+from lumen.core import LumenDict
 from tests.conftest import make_record
 
 

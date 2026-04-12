@@ -5,15 +5,13 @@ The decode_binary_records re-exported from lumen (not lumen.core) is
 the Rust-accelerated wrapper when Rust is compiled. These tests call it
 directly to cover both branches of the unwrap logic.
 """
-import pytest
 import lumen
 from lumen.core import (
-    LumenDict, LumenDictFull,
-    encode_binary_records, build_pool,
-    MAGIC,
+    LumenDict,
+    build_pool,
+    encode_binary_records,
 )
 from tests.conftest import make_record
-
 
 # ---------------------------------------------------------------------------
 # Call lumen.decode_binary_records (the __init__.py wrapper, not core's)
