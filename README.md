@@ -1,4 +1,3 @@
-cat > README.md << 'EOF'
 # LUMEN V1
 **Lightweight Universal Minimal Encoding Notation**
 
