@@ -9,30 +9,70 @@ of each module.
 
 ```text
 lumen/
-init.py public API surface, Rust detection and fallback
-core.py backward-compatibility shim (re-exports core/)
-core/
-init.py re-exports all public symbols from submodules
-_constants.py wire-format tags, strategy bytes, MAGIC, VERSION
-_primitives.py varint, zigzag, pack and unpack functions
-_strategies.py column strategy selection, pool builder
-_text.py text encoder and decoder
-_binary.py binary encoder and decoder
-_lumen_llm.py LUMIA encoder and decoder
-_agent.py LUMEN-AGENT protocol
-_api.py LumenDict and LumenDictFull classes
-src/
-lib.rs Rust acceleration layer (PyO3)
-tests/
-conftest.py shared fixtures and helpers
-integration/ end-to-end tests
-perf/ size and speed benchmarks
-unit/ unit tests per module
-docs/ this documentation
-Cargo.toml Rust package manifest
-pyproject.toml Python package manifest
-SPEC.md wire format specification
-README.md project overview
+├── Cargo.lock
+├── Cargo.toml
+├── pyproject.toml
+├── README.md
+├── SPEC.md
+├── .gitignore
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── src/
+│   └── lib.rs
+├── lumen/
+│   ├── __init__.py
+│   ├── core.py
+│   └── core/
+│       ├── __init__.py
+│       ├── _constants.py
+│       ├── _primitives.py
+│       ├── _strategies.py
+│       ├── _text.py
+│       ├── _binary.py
+│       ├── _lumen_llm.py
+│       ├── _agent.py
+│       └── _api.py
+├── tests/
+│   ├── conftest.py
+│   ├── integration/
+│   │   ├── test_edge_cases.py
+│   │   ├── test_init_coverage.py
+│   │   └── test_rust_layer.py
+│   ├── perf/
+│   │   ├── test_benchmark.py
+│   │   ├── test_size.py
+│   │   └── test_speed.py
+│   └── unit/
+│       ├── test_agent.py
+│       ├── test_core_coverage.py
+│       ├── test_encoders.py
+│       ├── test_lumendict.py
+│       ├── test_lumen_llm.py
+│       ├── test_primitives.py
+│       └── test_strategies.py
+└── docs/
+    ├── index.md
+    ├── getting-started/
+    │   ├── installation.md
+    │   └── quickstart.md
+    ├── guides/
+    │   ├── binary-format.md
+    │   ├── text-format.md
+    │   ├── lumia.md
+    │   └── compression.md
+    ├── reference/
+    │   ├── api.md
+    │   ├── constants.md
+    │   ├── primitives.md
+    │   └── benchmarks.md
+    ├── agent/
+    │   ├── overview.md
+    │   ├── spec.md
+    │   └── system-prompt.md
+    └── internals/
+        ├── architecture.md
+        └── wire-format.md
 ```
 
 ## Module Responsibilities
