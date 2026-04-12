@@ -788,9 +788,9 @@ class TestSlowPathPlainDataRow:
         text = 'L|"first,name":s,age:d\nAlice,30\nBob,25'
         result = decode_lumen_llm(text)
         assert len(result) == 2
-        assert result[0]["first,name"] == "Alice"
+        assert result[0]['"first,name"'] == "Alice"
         assert result[0]["age"] == 30
-        assert result[1]["first,name"] == "Bob"
+        assert result[1]['"first,name"'] == "Bob"
         assert result[1]["age"] == 25
 
     def test_needs_slow_plain_row_mismatched_cols(self):
@@ -798,6 +798,6 @@ class TestSlowPathPlainDataRow:
         from lumen.core._lumen_llm import decode_lumen_llm
         text = 'L|"first,name":s,age:d,score:f\nAlice,30'
         result = decode_lumen_llm(text)
-        assert result[0]["first,name"] == "Alice"
+        assert result[0]['"first,name"'] == "Alice"
         assert result[0]["age"] == 30
         assert result[0]["score"] is None
