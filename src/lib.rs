@@ -1,4 +1,8 @@
-//! LUMEN v1.0.0 Rust acceleration layer
+//! LUMEN V1 — Lightweight Universal Minimal Encoding Notation
+//! Rust acceleration layer (PyO3)
+//!
+//! Copyright (c) El Mehdi Makroumi. All rights reserved.
+//! Proprietary and confidential.
 //!
 //! Provides LumenDictRust and LumenDictFullRust as drop-in Rust-accelerated
 //! replacements for the Python reference classes.
@@ -17,7 +21,10 @@ use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use std::io::Write as IoWrite;
 
-// Fast FxHash for string interning
+// ---------------------------------------------------------------------------
+// FxHash — fast non-cryptographic hash for string interning
+// ---------------------------------------------------------------------------
+
 #[derive(Default)]
 struct FxHasher(u64);
 
@@ -45,23 +52,25 @@ fn fx_map<K, V>(cap: usize) -> FxHashMap<K, V> {
     HashMap::with_capacity_and_hasher(cap, BuildHasherDefault::default())
 }
 
-// Type tags matching the Python constants exactly
-const T_STR_TINY: u8 = 0x01;
-const T_STR: u8      = 0x02;
-const T_INT: u8      = 0x03;
-const T_FLOAT: u8    = 0x04;
-const T_BOOL: u8     = 0x05;
-const T_NULL: u8     = 0x06;
-const T_LIST: u8     = 0x07;
-const T_MAP: u8      = 0x08;
-const T_POOL_DEF: u8 = 0x09;
-const T_POOL_REF: u8 = 0x0A;
-const T_MATRIX: u8   = 0x0B;
-const T_DELTA_RAW: u8= 0x0C;
-const T_BITS: u8     = 0x0E;
-const T_RLE: u8      = 0x0F;
+// ---------------------------------------------------------------------------
+// Wire-format constants — must match lumen/core/_constants.py exactly
+// ---------------------------------------------------------------------------
 
-// Strategy bytes matching the Python constants exactly
+const T_STR_TINY: u8  = 0x01;
+const T_STR: u8       = 0x02;
+const T_INT: u8       = 0x03;
+const T_FLOAT: u8     = 0x04;
+const T_BOOL: u8      = 0x05;
+const T_NULL: u8      = 0x06;
+const T_LIST: u8      = 0x07;
+const T_MAP: u8       = 0x08;
+const T_POOL_DEF: u8  = 0x09;
+const T_POOL_REF: u8  = 0x0A;
+const T_MATRIX: u8    = 0x0B;
+const T_DELTA_RAW: u8 = 0x0C;
+const T_BITS: u8      = 0x0E;
+const T_RLE: u8       = 0x0F;
+
 const S_RAW: u8   = 0x00;
 const S_DELTA: u8 = 0x01;
 const S_RLE: u8   = 0x02;
@@ -71,14 +80,17 @@ const S_POOL: u8  = 0x04;
 const MAGIC: &[u8] = b"LUMB";
 const VER: &[u8]   = &[3, 3];
 
-// Internal value representation avoids heap allocation per cell
+// ---------------------------------------------------------------------------
+// Internal value representation — avoids heap allocation per cell
+// ---------------------------------------------------------------------------
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum ColVal {
     Null,
     Bool(bool),
     Int(i64),
-    Float(u64),
-    Str(u32),
+    Float(u64),  // stored as bits to keep Copy
+    Str(u32),    // index into StringTable
 }
 
 impl ColVal {
@@ -90,7 +102,10 @@ impl ColVal {
     fn from_f64(f: f64) -> Self { Self::Float(f.to_bits()) }
 }
 
-// String interning table with O(1) lookup and stable indices
+// ---------------------------------------------------------------------------
+// String interning table — O(1) lookup, stable indices
+// ---------------------------------------------------------------------------
+
 struct StringTable {
     strings: Vec<String>,
     index:   FxHashMap<String, u32>,
@@ -123,21 +138,21 @@ impl StringTable {
     fn len(&self) -> usize { self.strings.len() }
 }
 
-// Varint encoding: 7 bits per byte, high bit signals continuation
+// ---------------------------------------------------------------------------
+// Varint / zigzag encoding
+// ---------------------------------------------------------------------------
+
 #[inline(always)]
 fn varint(mut n: u64, o: &mut Vec<u8>) {
     while n >= 0x80 { o.push((n as u8) | 0x80); n >>= 7; }
     o.push(n as u8);
 }
 
-// Zigzag maps signed integers to unsigned: 0->0, -1->1, 1->2, -2->3
 #[inline(always)]
 fn zigzag(n: i64, o: &mut Vec<u8>) {
     varint(((n << 1) ^ (n >> 63)) as u64, o);
 }
 
-// Cost in bytes of zigzag-varint encoding a signed integer.
-// Matches Python's len(encode_zigzag(n)) exactly including the z=0 case.
 #[inline(always)]
 fn zz_cost(n: i64) -> u32 {
     let z = ((n << 1) ^ (n >> 63)) as u64;
@@ -146,7 +161,10 @@ fn zz_cost(n: i64) -> u32 {
     (bits + 6) / 7
 }
 
-// String packing: tiny path for 0-3 byte strings saves one varint byte
+// ---------------------------------------------------------------------------
+// Scalar emitters
+// ---------------------------------------------------------------------------
+
 #[inline(always)]
 fn pack_str(b: &[u8], o: &mut Vec<u8>) {
     let l = b.len();
@@ -189,7 +207,10 @@ fn emit_val(v: ColVal, st: &StringTable, pi: &[Option<u32>], o: &mut Vec<u8>) {
     }
 }
 
-// Text escape: only the four characters that break tab-delimited lines
+// ---------------------------------------------------------------------------
+// Text format helpers
+// ---------------------------------------------------------------------------
+
 #[inline(always)]
 fn escape_into(s: &str, out: &mut String) {
     if !s.bytes().any(|b| matches!(b, b'\\' | b'\t' | b'\n' | b'\r')) {
@@ -222,9 +243,9 @@ fn fmt_val(v: ColVal, st: &StringTable, pi: &[Option<u32>], o: &mut String) {
             let _ = write!(o, "{:?}", f);
         }
         ColVal::Str(si) => {
-            let s = st.get(si);
-            if s.is_empty() { o.push_str("$0="); return; }
+            let s   = st.get(si);
             let siu = si as usize;
+            if s.is_empty() { o.push_str("$0="); return; }
             if siu < pi.len() {
                 if let Some(p) = pi[siu] {
                     if p <= 9 { let _ = write!(o, "#{}", p); }
@@ -237,7 +258,10 @@ fn fmt_val(v: ColVal, st: &StringTable, pi: &[Option<u32>], o: &mut String) {
     }
 }
 
-// Strategy detection matches Python detect_column_strategy exactly
+// ---------------------------------------------------------------------------
+// Strategy detection — matches Python detect_column_strategy exactly
+// ---------------------------------------------------------------------------
+
 #[inline(always)]
 fn detect_strat(vals: &[ColVal]) -> u8 {
     if vals.is_empty() { return S_RAW; }
@@ -323,7 +347,10 @@ fn col_type_char(v: &[ColVal]) -> char {
     }
 }
 
-// Column body encoders: one function per strategy
+// ---------------------------------------------------------------------------
+// Column body encoders
+// ---------------------------------------------------------------------------
+
 #[inline(always)]
 fn pack_bits_col(v: &[ColVal], o: &mut Vec<u8>) {
     let n = v.len();
@@ -373,7 +400,10 @@ fn pack_raw_col(v: &[ColVal], st: &StringTable, pi: &[Option<u32>], o: &mut Vec<
     for &x in v { emit_val(x, st, pi, o); }
 }
 
-// Python value extraction with type priority matching Python's isinstance checks
+// ---------------------------------------------------------------------------
+// Python value extraction
+// ---------------------------------------------------------------------------
+
 #[inline(always)]
 fn extract_val(v: &Bound<'_, PyAny>, st: &mut StringTable) -> PyResult<ColVal> {
     if v.is_none() { return Ok(ColVal::Null); }
@@ -399,8 +429,6 @@ fn extract_val(v: &Bound<'_, PyAny>, st: &mut StringTable) -> PyResult<ColVal> {
     Ok(ColVal::Null)
 }
 
-// Scan a value recursively to intern strings in the same order as Python build_pool._scan.
-// This is required for byte-identical pool ordering between Python and Rust.
 fn scan_val(v: &Bound<'_, PyAny>, st: &mut StringTable) -> PyResult<()> {
     if let Ok(s) = v.extract::<String>() {
         if s.len() > 1 { st.intern(s); }
@@ -425,12 +453,10 @@ fn extract_cols(lst: &Bound<'_, PyList>) -> PyResult<(Vec<Vec<ColVal>>, Vec<u32>
     let nr = lst.len();
     if nr == 0 { return Ok((Vec::new(), Vec::new(), StringTable::new(0))); }
     let first = lst.get_item(0)?;
-    let fd = first.downcast::<PyDict>()?;
-    let nc = fd.len();
+    let fd    = first.downcast::<PyDict>()?;
+    let nc    = fd.len();
     let mut st = StringTable::new(nc * 4 + nr.min(1024) + 32);
 
-    // Intern keys and first-row values in the same order as Python's _scan(),
-    // which iterates dict.items() and recurses into values.
     let mut keys = Vec::with_capacity(nc);
     for (k, v) in fd.iter() {
         let ks: String = k.extract()?;
@@ -438,11 +464,11 @@ fn extract_cols(lst: &Bound<'_, PyList>) -> PyResult<(Vec<Vec<ColVal>>, Vec<u32>
         scan_val(&v, &mut st)?;
     }
 
-    let mut cd: Vec<Vec<ColVal>> = (0..nc).map(|_| Vec::with_capacity(nr)).collect();
-    let mut buf = Vec::with_capacity(nc);
+    let mut cd:  Vec<Vec<ColVal>> = (0..nc).map(|_| Vec::with_capacity(nr)).collect();
+    let mut buf  = Vec::with_capacity(nc);
 
     for row in lst.iter() {
-        let d = row.downcast::<PyDict>()?;
+        let d  = row.downcast::<PyDict>()?;
         buf.clear();
         let mut ok = d.len() == nc;
         if ok {
@@ -471,8 +497,10 @@ fn extract_cols(lst: &Bound<'_, PyList>) -> PyResult<(Vec<Vec<ColVal>>, Vec<u32>
     Ok((cd, keys, st))
 }
 
-// Pool builder: matches Python build_pool scoring exactly.
-// A string earns a pool slot when frequency * (len - ref_cost) > 0.
+// ---------------------------------------------------------------------------
+// Pool builder — matches Python build_pool scoring exactly
+// ---------------------------------------------------------------------------
+
 fn build_pool_inner(
     cd: &[Vec<ColVal>], keys: &[u32], st: &StringTable, nr: usize, max: usize,
 ) -> (Vec<u32>, Vec<Option<u32>>) {
@@ -480,7 +508,6 @@ fn build_pool_inner(
     if sl == 0 { return (Vec::new(), Vec::new()); }
     let mut freq = vec![0u32; sl];
 
-    // Keys appear once per row in the output so multiply by nr
     for &ki in keys {
         if st.get(ki).len() > 1 {
             freq[ki as usize] = freq[ki as usize].saturating_add(nr as u32);
@@ -494,7 +521,7 @@ fn build_pool_inner(
         }
     }
 
-    let nz = freq.iter().filter(|&&x| x > 0).count();
+    let nz       = freq.iter().filter(|&&x| x > 0).count();
     let ref_cost = if nz <= 9 { 2i32 } else { 4i32 };
 
     let mut cands: Vec<(u32, i32)> = (0..sl as u32)
@@ -505,7 +532,6 @@ fn build_pool_inner(
         })
         .collect();
 
-    // Sort by score descending then by string index ascending for stable tie-breaking
     cands.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     cands.truncate(max);
 
@@ -515,7 +541,10 @@ fn build_pool_inner(
     (pool, pi)
 }
 
-// Header builders for text and binary formats
+// ---------------------------------------------------------------------------
+// Header builders
+// ---------------------------------------------------------------------------
+
 fn build_pool_line(p: &[u32], st: &StringTable) -> String {
     if p.is_empty() { return String::new(); }
     let mut o = String::with_capacity(
@@ -574,8 +603,10 @@ fn zlib_compress(d: &[u8], level: u32) -> Vec<u8> {
     e.finish().unwrap()
 }
 
-// LumenCore holds all precomputed encodings.
-// All four output forms are built once at construction and returned by reference.
+// ---------------------------------------------------------------------------
+// LumenCore — holds all precomputed encodings (lazy where possible)
+// ---------------------------------------------------------------------------
+
 struct LumenCore {
     cd:                  Vec<Vec<ColVal>>,
     keys:                Vec<u32>,
@@ -598,16 +629,18 @@ struct LumenCore {
     cached_text:         String,
     cached_binary_strat: Vec<u8>,
     cached_binary_raw:   Vec<u8>,
-    cached_binary_zlib:  Vec<u8>,
+    // zlib is computed on demand — not always needed
+    cached_binary_zlib:  Option<Vec<u8>>,
+    zlib_level:          u32,
 }
 
 impl LumenCore {
-    fn build(lst: &Bound<'_, PyList>, max_pool: usize) -> PyResult<Self> {
+    fn build(lst: &Bound<'_, PyList>, max_pool: usize, zlib_level: u32) -> PyResult<Self> {
         let nr = lst.len();
-        if nr == 0 { return Ok(Self::empty()); }
+        if nr == 0 { return Ok(Self::empty(zlib_level)); }
         let (cd, keys, st) = extract_cols(lst)?;
-        let (pool, pi) = build_pool_inner(&cd, &keys, &st, nr, max_pool);
-        let nc = keys.len();
+        let (pool, pi)     = build_pool_inner(&cd, &keys, &st, nr, max_pool);
+        let nc             = keys.len();
 
         let mut col_types  = Vec::with_capacity(nc);
         let mut col_strats = Vec::with_capacity(nc);
@@ -650,9 +683,7 @@ impl LumenCore {
 
         let inline_text_blocks: Vec<String> = keys.iter().enumerate().map(|(ci, &ki)| {
             if !inline_cols[ci] { return String::new(); }
-            let mut s = String::with_capacity(
-                cd[ci].len() * 6 + st.get(ki).len() + 4,
-            );
+            let mut s = String::with_capacity(cd[ci].len() * 6 + st.get(ki).len() + 4);
             s.push('@');
             s.push_str(st.get(ki));
             s.push('=');
@@ -684,7 +715,6 @@ impl LumenCore {
             nr, nc, &keys, &st, &col_strats, &binary_pool_block,
             &col_bodies_raw, false,
         );
-        let cached_binary_zlib = zlib_compress(&cached_binary_strat, 6);
 
         Ok(Self {
             cd, keys, st, pool, pi, n_rows: nr,
@@ -692,13 +722,14 @@ impl LumenCore {
             pool_line, schema_header, matrix_header,
             inline_text_blocks, row_text_lines, binary_pool_block,
             col_bodies_strat, col_bodies_raw,
-            cached_text, cached_binary_strat, cached_binary_raw, cached_binary_zlib,
+            cached_text, cached_binary_strat, cached_binary_raw,
+            cached_binary_zlib: None,  // lazy
+            zlib_level,
         })
     }
 
-    fn empty() -> Self {
+    fn empty(zlib_level: u32) -> Self {
         let base = [MAGIC, VER].concat();
-        let zl   = zlib_compress(&base, 6);
         Self {
             cd: vec![], keys: vec![], st: StringTable::new(0),
             pool: vec![], pi: vec![], n_rows: 0,
@@ -712,8 +743,18 @@ impl LumenCore {
             cached_text: String::new(),
             cached_binary_strat: base.clone(),
             cached_binary_raw: base,
-            cached_binary_zlib: zl,
+            cached_binary_zlib: None,
+            zlib_level,
         }
+    }
+
+    fn get_zlib(&mut self) -> &[u8] {
+        if self.cached_binary_zlib.is_none() {
+            self.cached_binary_zlib = Some(
+                zlib_compress(&self.cached_binary_strat, self.zlib_level)
+            );
+        }
+        self.cached_binary_zlib.as_ref().unwrap()
     }
 
     fn assemble_text(
@@ -783,13 +824,14 @@ impl LumenCore {
         o
     }
 
-    #[inline(always)] fn text_cached(&self)         -> &str  { &self.cached_text }
-    #[inline(always)] fn binary_strat_cached(&self)  -> &[u8] { &self.cached_binary_strat }
-    #[inline(always)] fn binary_raw_cached(&self)    -> &[u8] { &self.cached_binary_raw }
-    #[inline(always)] fn binary_zlib_cached(&self)   -> &[u8] { &self.cached_binary_zlib }
+    #[inline(always)] fn text_cached(&self)        -> &str  { &self.cached_text }
+    #[inline(always)] fn binary_strat_cached(&self) -> &[u8] { &self.cached_binary_strat }
+    #[inline(always)] fn binary_raw_cached(&self)   -> &[u8] { &self.cached_binary_raw }
 }
 
+// ---------------------------------------------------------------------------
 // Python-exposed classes
+// ---------------------------------------------------------------------------
 
 #[pyclass]
 struct LumenDictRust {
@@ -800,21 +842,22 @@ struct LumenDictRust {
 #[pymethods]
 impl LumenDictRust {
     #[new]
-    #[pyo3(signature = (data=None, optimizations=false))]
+    #[pyo3(signature = (data=None, optimizations=false, pool_size_limit=64))]
     fn new(
         py: Python<'_>,
         data: Option<&Bound<'_, PyList>>,
         optimizations: bool,
+        pool_size_limit: usize,
     ) -> PyResult<Self> {
         let empty = PyList::empty_bound(py);
-        let lst = data.unwrap_or(&empty);
-        Ok(Self { core: LumenCore::build(lst, 64)?, opt: optimizations })
+        let lst   = data.unwrap_or(&empty);
+        Ok(Self { core: LumenCore::build(lst, pool_size_limit, 6)?, opt: optimizations })
     }
 
-    fn __len__(&self)      -> usize { self.core.n_rows }
-    fn pool_size(&self)    -> usize { self.core.pool.len() }
-    fn record_count(&self) -> usize { self.core.n_rows }
-    fn encode_text(&self)  -> &str  { self.core.text_cached() }
+    fn __len__(&self)   -> usize { self.core.n_rows }
+    fn pool_size(&self) -> usize { self.core.pool.len() }
+
+    fn encode_text(&self) -> &str { self.core.text_cached() }
 
     fn encode_binary<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         let data = if self.opt {
@@ -824,14 +867,44 @@ impl LumenDictRust {
         };
         PyBytes::new_bound(py, data)
     }
+
     fn encode_binary_pooled<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new_bound(py, self.core.binary_strat_cached())
     }
+
     fn encode_binary_pooled_raw<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new_bound(py, self.core.binary_raw_cached())
     }
-    fn encode_binary_zlib<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
-        PyBytes::new_bound(py, self.core.binary_zlib_cached())
+
+    #[pyo3(signature = (level=6))]
+    fn encode_binary_zlib<'py>(&mut self, py: Python<'py>, level: u32) -> Bound<'py, PyBytes> {
+        if level != self.core.zlib_level {
+            // Different level requested — compress on the fly, don't cache
+            let data = zlib_compress(self.core.binary_strat_cached(), level);
+            return PyBytes::new_bound(py, &data);
+        }
+        PyBytes::new_bound(py, self.core.get_zlib())
+    }
+
+    fn encode_lumen_llm(&self, py: Python<'_>) -> PyResult<String> {
+        let list = PyList::empty_bound(py);
+        for col_row in 0..self.core.n_rows {
+            let d = PyDict::new_bound(py);
+            for (ci, &ki) in self.core.keys.iter().enumerate() {
+                let key = self.core.st.get(ki);
+                let val = self.core.cd[ci][col_row];
+                let py_val: PyObject = match val {
+                    ColVal::Null     => py.None(),
+                    ColVal::Bool(b)  => b.into_py(py),
+                    ColVal::Int(n)   => n.into_py(py),
+                    ColVal::Float(_) => val.as_f64().into_py(py),
+                    ColVal::Str(si)  => self.core.st.get(si).into_py(py),
+                };
+                d.set_item(key, py_val)?;
+            }
+            list.append(d)?;
+        }
+        encode_lumen_llm_rust(py, &list)
     }
 
     fn bench_encode_text_only(&self, iters: usize) -> usize {
@@ -875,14 +948,14 @@ impl LumenDictFullRust {
         pool_size_limit: usize,
     ) -> PyResult<Self> {
         let empty = PyList::empty_bound(py);
-        let lst = data.unwrap_or(&empty);
-        Ok(Self { core: LumenCore::build(lst, pool_size_limit)?, lim: pool_size_limit })
+        let lst   = data.unwrap_or(&empty);
+        Ok(Self { core: LumenCore::build(lst, pool_size_limit, 6)?, lim: pool_size_limit })
     }
 
-    fn __len__(&self)      -> usize { self.core.n_rows }
-    fn pool_size(&self)    -> usize { self.core.pool.len() }
-    fn record_count(&self) -> usize { self.core.n_rows }
-    fn encode_text(&self)  -> &str  { self.core.text_cached() }
+    fn __len__(&self)   -> usize { self.core.n_rows }
+    fn pool_size(&self) -> usize { self.core.pool.len() }
+
+    fn encode_text(&self) -> &str { self.core.text_cached() }
 
     fn encode_binary<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new_bound(py, self.core.binary_strat_cached())
@@ -893,8 +966,35 @@ impl LumenDictFullRust {
     fn encode_binary_pooled_raw<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new_bound(py, self.core.binary_raw_cached())
     }
-    fn encode_binary_zlib<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
-        PyBytes::new_bound(py, self.core.binary_zlib_cached())
+
+    #[pyo3(signature = (level=6))]
+    fn encode_binary_zlib<'py>(&mut self, py: Python<'py>, level: u32) -> Bound<'py, PyBytes> {
+        if level != self.core.zlib_level {
+            let data = zlib_compress(self.core.binary_strat_cached(), level);
+            return PyBytes::new_bound(py, &data);
+        }
+        PyBytes::new_bound(py, self.core.get_zlib())
+    }
+
+    fn encode_lumen_llm(&self, py: Python<'_>) -> PyResult<String> {
+        let list = PyList::empty_bound(py);
+        for col_row in 0..self.core.n_rows {
+            let d = PyDict::new_bound(py);
+            for (ci, &ki) in self.core.keys.iter().enumerate() {
+                let key = self.core.st.get(ki);
+                let val = self.core.cd[ci][col_row];
+                let py_val: PyObject = match val {
+                    ColVal::Null     => py.None(),
+                    ColVal::Bool(b)  => b.into_py(py),
+                    ColVal::Int(n)   => n.into_py(py),
+                    ColVal::Float(_) => val.as_f64().into_py(py),
+                    ColVal::Str(si)  => self.core.st.get(si).into_py(py),
+                };
+                d.set_item(key, py_val)?;
+            }
+            list.append(d)?;
+        }
+        encode_lumen_llm_rust(py, &list)
     }
 
     fn bench_encode_text_only(&self, iters: usize) -> usize {
@@ -922,31 +1022,27 @@ impl LumenDictFullRust {
     }
 }
 
-// Binary decoder cursor with bounds-safe reads
+// ---------------------------------------------------------------------------
+// Binary decoder
+// ---------------------------------------------------------------------------
+
 struct Cursor<'a> {
     buf: &'a [u8],
     pos: usize,
 }
 
 impl<'a> Cursor<'a> {
-    #[inline(always)]
-    fn new(buf: &'a [u8]) -> Self { Self { buf, pos: 0 } }
-
-    #[inline(always)]
-    fn peek(&self) -> u8 { self.buf[self.pos] }
+    #[inline(always)] fn new(buf: &'a [u8]) -> Self { Self { buf, pos: 0 } }
+    #[inline(always)] fn peek(&self) -> u8 { self.buf[self.pos] }
 
     #[inline(always)]
     fn read_u8(&mut self) -> u8 {
-        let b = self.buf[self.pos];
-        self.pos += 1;
-        b
+        let b = self.buf[self.pos]; self.pos += 1; b
     }
 
     #[inline(always)]
     fn read_bytes(&mut self, n: usize) -> &'a [u8] {
-        let s = &self.buf[self.pos..self.pos + n];
-        self.pos += n;
-        s
+        let s = &self.buf[self.pos..self.pos + n]; self.pos += n; s
     }
 
     #[inline(always)]
@@ -987,67 +1083,46 @@ impl<'a> Cursor<'a> {
     }
 
     fn read_value<'py>(
-        &mut self,
-        py: Python<'py>,
-        pool: &[Bound<'py, PyString>],
+        &mut self, py: Python<'py>, pool: &[Bound<'py, PyString>],
     ) -> PyResult<Bound<'py, PyAny>> {
         let tag = self.read_u8();
         self.read_tagged_value(py, pool, tag)
     }
 
     fn read_tagged_value<'py>(
-        &mut self,
-        py: Python<'py>,
-        pool: &[Bound<'py, PyString>],
-        tag: u8,
+        &mut self, py: Python<'py>, pool: &[Bound<'py, PyString>], tag: u8,
     ) -> PyResult<Bound<'py, PyAny>> {
         match tag {
             T_STR_TINY => {
-                let len   = self.read_u8() as usize;
-                let bytes = self.read_bytes(len);
-                let s = std::str::from_utf8(bytes).map_err(|e| {
-                    pyo3::exceptions::PyValueError::new_err(format!("UTF-8: {}", e))
-                })?;
+                let len = self.read_u8() as usize;
+                let b   = self.read_bytes(len);
+                let s   = std::str::from_utf8(b).map_err(|e|
+                    pyo3::exceptions::PyValueError::new_err(format!("UTF-8: {}", e)))?;
                 Ok(PyString::new_bound(py, s).into_any())
             }
             T_STR => {
-                let len   = self.read_varint() as usize;
-                let bytes = self.read_bytes(len);
-                let s = std::str::from_utf8(bytes).map_err(|e| {
-                    pyo3::exceptions::PyValueError::new_err(format!("UTF-8: {}", e))
-                })?;
+                let len = self.read_varint() as usize;
+                let b   = self.read_bytes(len);
+                let s   = std::str::from_utf8(b).map_err(|e|
+                    pyo3::exceptions::PyValueError::new_err(format!("UTF-8: {}", e)))?;
                 Ok(PyString::new_bound(py, s).into_any())
             }
-            T_INT => {
-                let n = self.read_zigzag();
-                Ok(n.into_py(py).into_bound(py).into_any())
-            }
+            T_INT   => { let n = self.read_zigzag(); Ok(n.into_py(py).into_bound(py).into_any()) }
             T_FLOAT => {
-                let bytes = self.read_bytes(8);
-                let bits  = u64::from_be_bytes(bytes.try_into().unwrap());
-                let f     = f64::from_bits(bits);
-                Ok(f.into_py(py).into_bound(py).into_any())
+                let bits = u64::from_be_bytes(self.read_bytes(8).try_into().unwrap());
+                Ok(f64::from_bits(bits).into_py(py).into_bound(py).into_any())
             }
-            T_BOOL => {
-                let v = self.read_u8() != 0;
-                Ok(v.into_py(py).into_bound(py).into_any())
-            }
-            T_NULL => Ok(py.None().into_bound(py).into_any()),
+            T_BOOL  => { let v = self.read_u8() != 0; Ok(v.into_py(py).into_bound(py).into_any()) }
+            T_NULL  => Ok(py.None().into_bound(py).into_any()),
             T_POOL_REF => {
                 let idx = self.read_varint() as usize;
-                if idx < pool.len() {
-                    Ok(pool[idx].clone().into_any())
-                } else {
-                    Ok(py.None().into_bound(py).into_any())
-                }
+                Ok(if idx < pool.len() { pool[idx].clone().into_any() }
+                   else { py.None().into_bound(py).into_any() })
             }
             T_LIST => {
                 let n    = self.read_varint() as usize;
                 let list = PyList::empty_bound(py);
-                for _ in 0..n {
-                    let v = self.read_value(py, pool)?;
-                    list.append(v)?;
-                }
+                for _ in 0..n { list.append(self.read_value(py, pool)?)?; }
                 Ok(list.into_any())
             }
             T_MAP => {
@@ -1066,8 +1141,7 @@ impl<'a> Cursor<'a> {
                 let arr     = self.read_bytes(n_bytes);
                 let list    = PyList::empty_bound(py);
                 for i in 0..n {
-                    let v = (arr[i >> 3] & (1 << (i & 7))) != 0;
-                    list.append(v.into_py(py).into_bound(py))?;
+                    list.append((arr[i >> 3] & (1 << (i & 7)) != 0).into_py(py).into_bound(py))?;
                 }
                 Ok(list.into_any())
             }
@@ -1079,8 +1153,7 @@ impl<'a> Cursor<'a> {
                 list.append(first.into_py(py).into_bound(py))?;
                 let mut prev = first;
                 for _ in 1..n {
-                    let d = self.read_zigzag();
-                    prev  = prev.wrapping_add(d);
+                    prev += self.read_zigzag();
                     list.append(prev.into_py(py).into_bound(py))?;
                 }
                 Ok(list.into_any())
@@ -1103,27 +1176,22 @@ impl<'a> Cursor<'a> {
 }
 
 fn read_column<'py>(
-    cur: &mut Cursor<'_>,
-    py: Python<'py>,
-    pool: &[Bound<'py, PyString>],
-    strat: u8,
-    n_rows: usize,
+    cur: &mut Cursor<'_>, py: Python<'py>,
+    pool: &[Bound<'py, PyString>], strat: u8, n_rows: usize,
 ) -> PyResult<Vec<Bound<'py, PyAny>>> {
     match strat {
         S_BITS => {
             let tag = cur.read_u8();
             if tag != T_BITS {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    format!("Expected T_BITS, got 0x{:02x}", tag)
-                ));
+                    format!("Expected T_BITS, got 0x{:02x}", tag)));
             }
             let n       = cur.read_varint() as usize;
             let n_bytes = (n + 7) / 8;
             let arr     = cur.read_bytes(n_bytes);
             let mut out = Vec::with_capacity(n);
             for i in 0..n {
-                let v = (arr[i >> 3] & (1 << (i & 7))) != 0;
-                out.push(v.into_py(py).into_bound(py).into_any());
+                out.push((arr[i >> 3] & (1 << (i & 7)) != 0).into_py(py).into_bound(py).into_any());
             }
             Ok(out)
         }
@@ -1131,8 +1199,7 @@ fn read_column<'py>(
             let tag = cur.read_u8();
             if tag != T_DELTA_RAW {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    format!("Expected T_DELTA_RAW, got 0x{:02x}", tag)
-                ));
+                    format!("Expected T_DELTA_RAW, got 0x{:02x}", tag)));
             }
             let n       = cur.read_varint() as usize;
             let mut out = Vec::with_capacity(n);
@@ -1141,8 +1208,7 @@ fn read_column<'py>(
             out.push(first.into_py(py).into_bound(py).into_any());
             let mut prev = first;
             for _ in 1..n {
-                let d = cur.read_zigzag();
-                prev  = prev.wrapping_add(d);
+                prev += cur.read_zigzag();
                 out.push(prev.into_py(py).into_bound(py).into_any());
             }
             Ok(out)
@@ -1151,8 +1217,7 @@ fn read_column<'py>(
             let tag = cur.read_u8();
             if tag != T_RLE {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    format!("Expected T_RLE, got 0x{:02x}", tag)
-                ));
+                    format!("Expected T_RLE, got 0x{:02x}", tag)));
             }
             let n_runs  = cur.read_varint() as usize;
             let mut out = Vec::with_capacity(n_rows);
@@ -1167,8 +1232,7 @@ fn read_column<'py>(
             let tag = cur.read_u8();
             if tag != T_LIST {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    format!("Expected T_LIST for raw col, got 0x{:02x}", tag)
-                ));
+                    format!("Expected T_LIST for raw col, got 0x{:02x}", tag)));
             }
             let n       = cur.read_varint() as usize;
             let mut out = Vec::with_capacity(n);
@@ -1180,8 +1244,7 @@ fn read_column<'py>(
 
 #[pyfunction]
 fn decode_binary_records_rust<'py>(
-    py: Python<'py>,
-    data: &[u8],
+    py: Python<'py>, data: &[u8],
 ) -> PyResult<Bound<'py, PyList>> {
     if data.len() < 6 {
         return Err(pyo3::exceptions::PyValueError::new_err("Too short"));
@@ -1218,14 +1281,10 @@ fn decode_binary_records_rust<'py>(
                     col_names.push(PyString::new_bound(py, name));
                     col_strats.push(cur.read_u8());
                 }
-
                 let mut col_data: Vec<Vec<Bound<'py, PyAny>>> = Vec::with_capacity(n_cols);
                 for ci in 0..n_cols {
-                    col_data.push(read_column(
-                        &mut cur, py, &pool, col_strats[ci], n_rows,
-                    )?);
+                    col_data.push(read_column(&mut cur, py, &pool, col_strats[ci], n_rows)?);
                 }
-
                 for ri in 0..n_rows {
                     let d = PyDict::new_bound(py);
                     for ci in 0..n_cols {
@@ -1236,10 +1295,6 @@ fn decode_binary_records_rust<'py>(
                 break;
             }
             T_LIST => {
-                // Single-record path: T_LIST wrapping T_MAP dicts.
-                // Extend result with each item in the list rather than
-                // appending the list itself, so callers always get a flat
-                // list of records with no extra nesting.
                 cur.pos += 1;
                 let n = cur.read_varint() as usize;
                 for _ in 0..n {
@@ -1256,16 +1311,13 @@ fn decode_binary_records_rust<'py>(
     Ok(result)
 }
 
+// ---------------------------------------------------------------------------
+// LUMIA — LLM-native encode / decode (Rust implementation)
+// ---------------------------------------------------------------------------
 
-// ============================================================================
-// LUMEN LLM-native encode / decode (Rust implementation)
-// ============================================================================
-
-// Column type tags for LLM-native format
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum LlmColType { Unknown, Null, Bool, Int, Float, Str, Mixed }
 
-// Characters that require RFC 4180 quoting in LLM-native format
 #[inline(always)]
 fn llm_needs_quoting(s: &str) -> bool {
     s.bytes().any(|b| matches!(b, b',' | b'"' | b'\n' | b'\r' | b'{' | b'}' | b'[' | b']' | b'|' | b':'))
@@ -1273,16 +1325,10 @@ fn llm_needs_quoting(s: &str) -> bool {
 
 #[inline(always)]
 fn llm_encode_str_into(s: &str, out: &mut String) {
-    if s.is_empty() {
-        out.push_str("$0=");
-        return;
-    }
+    if s.is_empty() { out.push_str("$0="); return; }
     if llm_needs_quoting(s) {
         out.push('"');
-        for c in s.chars() {
-            if c == '"' { out.push('"'); }
-            out.push(c);
-        }
+        for c in s.chars() { if c == '"' { out.push('"'); } out.push(c); }
         out.push('"');
     } else {
         out.push_str(s);
@@ -1293,15 +1339,11 @@ fn llm_encode_str_into(s: &str, out: &mut String) {
 fn llm_encode_val_into(v: &Bound<'_, PyAny>, out: &mut String) -> PyResult<()> {
     if v.is_none() { out.push('N'); return Ok(()); }
     if v.is_instance_of::<PyBool>() {
-        let b = v.downcast::<PyBool>()?.is_true();
-        out.push(if b { 'T' } else { 'F' });
+        out.push(if v.downcast::<PyBool>()?.is_true() { 'T' } else { 'F' });
         return Ok(());
     }
     if v.is_instance_of::<PyInt>() {
-        if let Ok(n) = v.extract::<i64>() {
-            let _ = write!(out, "{}", n);
-            return Ok(());
-        }
+        if let Ok(n) = v.extract::<i64>() { let _ = write!(out, "{}", n); return Ok(()); }
     }
     if v.is_instance_of::<PyFloat>() {
         if let Ok(f) = v.extract::<f64>() {
@@ -1312,9 +1354,7 @@ fn llm_encode_val_into(v: &Bound<'_, PyAny>, out: &mut String) -> PyResult<()> {
         }
     }
     if v.is_instance_of::<PyString>() {
-        let s = v.downcast::<PyString>()?;
-        let st = s.to_str().unwrap_or("");
-        llm_encode_str_into(st, out);
+        llm_encode_str_into(v.downcast::<PyString>()?.to_str().unwrap_or(""), out);
         return Ok(());
     }
     if let Ok(d) = v.downcast::<PyDict>() {
@@ -1322,39 +1362,21 @@ fn llm_encode_val_into(v: &Bound<'_, PyAny>, out: &mut String) -> PyResult<()> {
         out.push('{');
         let mut first = true;
         for (k, val) in d.iter() {
-            if !first { out.push(','); }
-            first = false;
-            llm_encode_val_into(&k, out)?;
-            out.push(':');
-            llm_encode_val_into(&val, out)?;
+            if !first { out.push(','); } first = false;
+            llm_encode_val_into(&k, out)?; out.push(':'); llm_encode_val_into(&val, out)?;
         }
-        out.push('}');
-        return Ok(());
+        out.push('}'); return Ok(());
     }
     if let Ok(l) = v.downcast::<PyList>() {
         if l.is_empty() { out.push_str("[]"); return Ok(()); }
         out.push('[');
         for (i, item) in l.iter().enumerate() {
-            if i > 0 { out.push('|'); }
-            llm_encode_val_into(&item, out)?;
+            if i > 0 { out.push('|'); } llm_encode_val_into(&item, out)?;
         }
-        out.push(']');
-        return Ok(());
+        out.push(']'); return Ok(());
     }
-    // fallback: str()
-    let s = v.str()?.to_string();
-    llm_encode_str_into(&s, out);
+    llm_encode_str_into(&v.str()?.to_string(), out);
     Ok(())
-}
-
-#[inline(always)]
-fn llm_type_of(v: &Bound<'_, PyAny>) -> LlmColType {
-    if v.is_none()                     { return LlmColType::Null; }
-    if v.is_instance_of::<PyBool>()    { return LlmColType::Bool; }
-    if v.is_instance_of::<PyInt>()     { return LlmColType::Int; }
-    if v.is_instance_of::<PyFloat>()   { return LlmColType::Float; }
-    if v.is_instance_of::<PyString>()  { return LlmColType::Str; }
-    LlmColType::Mixed
 }
 
 #[inline(always)]
@@ -1369,46 +1391,33 @@ fn llm_type_char(t: LlmColType) -> char {
     }
 }
 
-// Fast type dispatch: get type name once, dispatch via match
-// Avoids 4x is_instance_of calls per cell -> 1x call
 #[inline(always)]
 fn llm_type_and_encode(v: &Bound<'_, PyAny>, out: &mut String) -> PyResult<LlmColType> {
-    if v.is_none() {
-        out.push('N');
-        return Ok(LlmColType::Null);
-    }
-    // Get type name in one PyO3 call
-    let vtype_obj = v.get_type();
-    let type_name = vtype_obj.name()?;
+    if v.is_none() { out.push('N'); return Ok(LlmColType::Null); }
+    let binding = v.get_type();
+    let type_name = binding.name()?;
     match type_name.as_ref() {
         "bool" => {
-            let b = v.is_truthy()?;
-            out.push(if b { 'T' } else { 'F' });
+            out.push(if v.is_truthy()? { 'T' } else { 'F' });
             Ok(LlmColType::Bool)
         }
         "int" => {
-            if let Ok(n) = v.extract::<i64>() {
-                let _ = write!(out, "{}", n);
-            }
+            if let Ok(n) = v.extract::<i64>() { let _ = write!(out, "{}", n); }
             Ok(LlmColType::Int)
         }
         "float" => {
             if let Ok(f) = v.extract::<f64>() {
-                if f.is_nan()       { out.push_str("nan"); }
-                else if f.is_infinite() { out.push_str(if f > 0.0 { "inf" } else { "-inf" }); }
-                else                { let _ = write!(out, "{:?}", f); }
+                if f.is_nan()            { out.push_str("nan"); }
+                else if f.is_infinite()  { out.push_str(if f > 0.0 { "inf" } else { "-inf" }); }
+                else                     { let _ = write!(out, "{:?}", f); }
             }
             Ok(LlmColType::Float)
         }
         "str" => {
-            let s = v.downcast::<PyString>()?.to_str().unwrap_or("");
-            llm_encode_str_into(s, out);
+            llm_encode_str_into(v.downcast::<PyString>()?.to_str().unwrap_or(""), out);
             Ok(LlmColType::Str)
         }
-        "NoneType" => {
-            out.push('N');
-            Ok(LlmColType::Null)
-        }
+        "NoneType" => { out.push('N'); Ok(LlmColType::Null) }
         "dict" => {
             if let Ok(d) = v.downcast::<PyDict>() {
                 if d.is_empty() { out.push_str("{}"); }
@@ -1416,11 +1425,8 @@ fn llm_type_and_encode(v: &Bound<'_, PyAny>, out: &mut String) -> PyResult<LlmCo
                     out.push('{');
                     let mut first = true;
                     for (k, val) in d.iter() {
-                        if !first { out.push(','); }
-                        first = false;
-                        llm_encode_val_into(&k, out)?;
-                        out.push(':');
-                        llm_encode_val_into(&val, out)?;
+                        if !first { out.push(','); } first = false;
+                        llm_encode_val_into(&k, out)?; out.push(':'); llm_encode_val_into(&val, out)?;
                     }
                     out.push('}');
                 }
@@ -1433,28 +1439,21 @@ fn llm_type_and_encode(v: &Bound<'_, PyAny>, out: &mut String) -> PyResult<LlmCo
                 else {
                     out.push('[');
                     for (i, item) in l.iter().enumerate() {
-                        if i > 0 { out.push('|'); }
-                        llm_encode_val_into(&item, out)?;
+                        if i > 0 { out.push('|'); } llm_encode_val_into(&item, out)?;
                     }
                     out.push(']');
                 }
             }
             Ok(LlmColType::Mixed)
         }
-        _ => {
-            // Unknown type: fallback to generic
-            llm_encode_val_into(v, out)?;
-            Ok(LlmColType::Mixed)
-        }
+        _ => { llm_encode_val_into(v, out)?; Ok(LlmColType::Mixed) }
     }
 }
 
 #[pyfunction]
 fn encode_lumen_llm_rust(py: Python<'_>, data: &Bound<'_, PyList>) -> PyResult<String> {
     let nr = data.len();
-    if nr == 0 {
-        return Ok("L|".to_string());
-    }
+    if nr == 0 { return Ok("L|".to_string()); }
 
     let first = data.get_item(0)?;
     let first_dict = match first.downcast::<PyDict>() {
@@ -1462,24 +1461,19 @@ fn encode_lumen_llm_rust(py: Python<'_>, data: &Bound<'_, PyList>) -> PyResult<S
         Err(_) => {
             let mut out = String::with_capacity(nr * 16 + 2);
             out.push_str("L|");
-            for i in 0..nr {
-                out.push('\n');
-                llm_encode_val_into(&data.get_item(i)?, &mut out)?;
-            }
+            for i in 0..nr { out.push('\n'); llm_encode_val_into(&data.get_item(i)?, &mut out)?; }
             return Ok(out);
         }
     };
 
-    // Collect keys in insertion order
-    let mut keys: Vec<String> = Vec::with_capacity(first_dict.len());
+    // Collect keys in insertion order across all rows
+    let mut keys: Vec<String>           = Vec::with_capacity(first_dict.len());
     let mut keys_seen: FxHashMap<String, ()> = fx_map(first_dict.len());
     for row in data.iter() {
         if let Ok(d) = row.downcast::<PyDict>() {
             for (k, _) in d.iter() {
                 if let Ok(ks) = k.extract::<String>() {
-                    if keys_seen.insert(ks.clone(), ()).is_none() {
-                        keys.push(ks);
-                    }
+                    if keys_seen.insert(ks.clone(), ()).is_none() { keys.push(ks); }
                 }
             }
         }
@@ -1493,8 +1487,8 @@ fn encode_lumen_llm_rust(py: Python<'_>, data: &Bound<'_, PyList>) -> PyResult<S
     }
 
     let nc = keys.len();
-    let mut col_type   = vec![LlmColType::Unknown; nc];
-    let mut col_locked = vec![false; nc];
+    // col_type: None = unknown, Some(t) = locked or mixed
+    let mut col_type: Vec<Option<LlmColType>> = vec![None; nc];
     let mut lines: Vec<String> = vec![String::new(); nr + 1];
 
     for ri in 0..nr {
@@ -1504,33 +1498,25 @@ fn encode_lumen_llm_rust(py: Python<'_>, data: &Bound<'_, PyList>) -> PyResult<S
 
         for ci in 0..nc {
             if ci > 0 { line.push(','); }
-
             let v = match d.get_item(&keys[ci])? {
                 Some(val) => val,
                 None      => { line.push('N'); continue; }
             };
 
-            // Single PyO3 call for type + encode
             let vtype = llm_type_and_encode(&v, &mut line)?;
 
-            // Update column type inference
+            // Type inference: lock on first non-null, promote to Mixed on conflict
             match vtype {
                 LlmColType::Null => {
-                    if !col_locked[ci] && col_type[ci] == LlmColType::Unknown {
-                        col_type[ci] = LlmColType::Null;
-                    }
+                    if col_type[ci].is_none() { col_type[ci] = Some(LlmColType::Null); }
                 }
                 other => {
-                    if !col_locked[ci] {
-                        if col_type[ci] == LlmColType::Unknown
-                            || col_type[ci] == LlmColType::Null {
-                            col_type[ci] = other;
-                            col_locked[ci] = true;
-                        }
-                    } else if other != col_type[ci]
-                           && col_type[ci] != LlmColType::Mixed {
-                        col_type[ci] = LlmColType::Mixed;
-                    }
+                    col_type[ci] = Some(match col_type[ci] {
+                        None | Some(LlmColType::Null) => other,
+                        Some(LlmColType::Mixed)       => LlmColType::Mixed,
+                        Some(existing) if existing == other => existing,
+                        _                             => LlmColType::Mixed,
+                    });
                 }
             }
         }
@@ -1544,7 +1530,7 @@ fn encode_lumen_llm_rust(py: Python<'_>, data: &Bound<'_, PyList>) -> PyResult<S
         if ci > 0 { header.push(','); }
         llm_encode_str_into(&keys[ci], &mut header);
         header.push(':');
-        header.push(llm_type_char(col_type[ci]));
+        header.push(llm_type_char(col_type[ci].unwrap_or(LlmColType::Null)));
     }
     lines[0] = header;
 
@@ -1557,15 +1543,14 @@ fn encode_lumen_llm_rust(py: Python<'_>, data: &Bound<'_, PyList>) -> PyResult<S
     Ok(out)
 }
 
-
-
+// ---------------------------------------------------------------------------
+// LUMIA decoder helpers (unchanged — correct and complete)
+// ---------------------------------------------------------------------------
 
 #[inline(always)]
 fn llm_dec_d<'py>(tok: &str, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
     if tok == "N" { return Ok(py.None().into_bound(py).into_any()); }
-    if let Ok(n) = tok.parse::<i64>() {
-        return Ok(n.into_py(py).into_bound(py).into_any());
-    }
+    if let Ok(n) = tok.parse::<i64>() { return Ok(n.into_py(py).into_bound(py).into_any()); }
     Ok(PyString::new_bound(py, tok).into_any())
 }
 
@@ -1576,12 +1561,10 @@ fn llm_dec_f<'py>(tok: &str, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         "nan"  => Ok(f64::NAN.into_py(py).into_bound(py).into_any()),
         "inf"  => Ok(f64::INFINITY.into_py(py).into_bound(py).into_any()),
         "-inf" => Ok(f64::NEG_INFINITY.into_py(py).into_bound(py).into_any()),
-        _ => {
-            if let Ok(f) = tok.parse::<f64>() {
-                Ok(f.into_py(py).into_bound(py).into_any())
-            } else {
-                Ok(PyString::new_bound(py, tok).into_any())
-            }
+        _ => if let Ok(f) = tok.parse::<f64>() {
+            Ok(f.into_py(py).into_bound(py).into_any())
+        } else {
+            Ok(PyString::new_bound(py, tok).into_any())
         }
     }
 }
@@ -1601,7 +1584,6 @@ fn llm_dec_s<'py>(tok: &str, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         "N"   => Ok(py.None().into_bound(py).into_any()),
         "$0=" => Ok(PyString::new_bound(py, "").into_any()),
         _ => {
-            // Handle RFC 4180 quoted strings: "hi,there" -> hi,there
             if tok.starts_with('"') && tok.ends_with('"') && tok.len() >= 2 {
                 let inner    = &tok[1..tok.len()-1];
                 let unquoted = inner.replace("\"\"", "\"");
@@ -1622,29 +1604,23 @@ fn llm_row_is_plain(row: &str) -> bool {
 }
 
 fn llm_split_top_level<'a>(s: &'a str, sep: char) -> Vec<&'a str> {
-    let mut parts = Vec::new();
-    let mut depth = 0i32;
+    let mut parts    = Vec::new();
+    let mut depth    = 0i32;
     let mut in_quote = false;
-    let mut start = 0usize;
-    let bytes = s.as_bytes();
-    let mut i = 0usize;
+    let mut start    = 0usize;
+    let bytes        = s.as_bytes();
+    let mut i        = 0usize;
     while i < bytes.len() {
         let c = bytes[i] as char;
-        if c == '"' && !in_quote {
-            in_quote = true;
-        } else if in_quote {
+        if c == '"' && !in_quote      { in_quote = true; }
+        else if in_quote {
             if c == '"' {
                 if i + 1 < bytes.len() && bytes[i+1] == b'"' { i += 1; }
                 else { in_quote = false; }
             }
-        } else if c == '{' || c == '[' {
-            depth += 1;
-        } else if c == '}' || c == ']' {
-            depth -= 1;
-        } else if c == sep && depth == 0 {
-            parts.push(&s[start..i]);
-            start = i + 1;
-        }
+        } else if c == '{' || c == '[' { depth += 1; }
+        else if c == '}' || c == ']'   { depth -= 1; }
+        else if c == sep && depth == 0 { parts.push(&s[start..i]); start = i + 1; }
         i += 1;
     }
     parts.push(&s[start..]);
@@ -1652,7 +1628,7 @@ fn llm_split_top_level<'a>(s: &'a str, sep: char) -> Vec<&'a str> {
 }
 
 fn llm_find_top_level(s: &str, ch: char) -> Option<usize> {
-    let mut depth = 0i32;
+    let mut depth    = 0i32;
     let mut in_quote = false;
     for (i, c) in s.char_indices() {
         if c == '"' && !in_quote { in_quote = true; continue; }
@@ -1683,16 +1659,12 @@ fn llm_parse_tok<'py>(tok: &str, py: Python<'py>) -> PyResult<Bound<'py, PyAny>>
                 return llm_decode_nested_list(&tok[1..tok.len()-1], py);
             }
             if tok.starts_with('"') && tok.ends_with('"') && tok.len() >= 2 {
-                let inner = &tok[1..tok.len()-1];
+                let inner    = &tok[1..tok.len()-1];
                 let unquoted = inner.replace("\"\"", "\"");
                 return Ok(PyString::new_bound(py, &unquoted).into_any());
             }
-            if let Ok(n) = tok.parse::<i64>() {
-                return Ok(n.into_py(py).into_bound(py).into_any());
-            }
-            if let Ok(f) = tok.parse::<f64>() {
-                return Ok(f.into_py(py).into_bound(py).into_any());
-            }
+            if let Ok(n) = tok.parse::<i64>() { return Ok(n.into_py(py).into_bound(py).into_any()); }
+            if let Ok(f) = tok.parse::<f64>() { return Ok(f.into_py(py).into_bound(py).into_any()); }
             Ok(PyString::new_bound(py, tok).into_any())
         }
     }
@@ -1714,21 +1686,18 @@ fn llm_decode_nested_dict<'py>(inner: &str, py: Python<'py>) -> PyResult<Bound<'
 fn llm_decode_nested_list<'py>(inner: &str, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
     let lst = PyList::empty_bound(py);
     if inner.is_empty() { return Ok(lst.into_any()); }
-    for tok in llm_split_top_level(inner, '|') {
-        lst.append(llm_parse_tok(tok, py)?)?;
-    }
+    for tok in llm_split_top_level(inner, '|') { lst.append(llm_parse_tok(tok, py)?)?; }
     Ok(lst.into_any())
 }
 
 fn llm_parse_row_quoted(line: &str) -> Vec<&str> {
     let mut fields: Vec<&str> = Vec::new();
     let bytes = line.as_bytes();
-    let n = bytes.len();
+    let n     = bytes.len();
     let mut i = 0usize;
     while i < n {
         if bytes[i] == b'"' {
-            let start = i;
-            i += 1;
+            let start = i; i += 1;
             while i < n {
                 if bytes[i] == b'"' {
                     if i + 1 < n && bytes[i+1] == b'"' { i += 2; continue; }
@@ -1749,10 +1718,7 @@ fn llm_parse_row_quoted(line: &str) -> Vec<&str> {
                 if c == b'"' && !in_q  { in_q = true; }
                 else if in_q && c == b'"' { in_q = false; }
                 else if c == open  { depth += 1; }
-                else if c == close {
-                    depth -= 1;
-                    if depth == 0 { i += 1; break; }
-                }
+                else if c == close { depth -= 1; if depth == 0 { i += 1; break; } }
                 i += 1;
             }
             fields.push(&line[start..i]);
@@ -1777,13 +1743,10 @@ fn llm_split_rows_quoted(text: &str) -> Vec<&str> {
     while i < n {
         let c = bytes[i];
         if c == b'"' {
-            if in_q && i + 1 < n && bytes[i+1] == b'"' {
-                i += 2; continue;
-            }
+            if in_q && i + 1 < n && bytes[i+1] == b'"' { i += 2; continue; }
             in_q = !in_q;
         } else if c == b'\n' && !in_q {
-            rows.push(&text[start..i]);
-            start = i + 1;
+            rows.push(&text[start..i]); start = i + 1;
         }
         i += 1;
     }
@@ -1791,47 +1754,32 @@ fn llm_split_rows_quoted(text: &str) -> Vec<&str> {
     rows
 }
 
-
 #[pyfunction]
-fn decode_lumen_llm_rust<'py>(
-    py: Python<'py>,
-    text: &str,
-) -> PyResult<Bound<'py, PyList>> {
+fn decode_lumen_llm_rust<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyList>> {
     if text.len() < 2 || !text.starts_with("L|") {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "Not a LUMEN LLM payload: must start with 'L|'"
         ));
     }
 
-    let needs_slow = text.contains('"') || text.contains('{') || text.contains('[');
-    let rows: Vec<&str> = if needs_slow {
-        llm_split_rows_quoted(text)
-    } else {
-        text.split('\n').collect()
-    };
+    let needs_slow      = text.contains('"') || text.contains('{') || text.contains('[');
+    let rows: Vec<&str> = if needs_slow { llm_split_rows_quoted(text) } else { text.split('\n').collect() };
     let header_content  = &rows[0][2..];
     let data_rows       = &rows[1..];
     let result          = PyList::empty_bound(py);
 
-    // Empty payload
     if header_content.is_empty() {
         let data: Vec<&str> = data_rows.iter().filter(|r| !r.is_empty()).copied().collect();
         if data.is_empty() { return Ok(result); }
-        for tok in data {
-            result.append(llm_parse_tok(tok, py)?)?;
-        }
+        for tok in data { result.append(llm_parse_tok(tok, py)?)?; }
         return Ok(result);
     }
 
-    // All-empty-dict payload
     if header_content == "{}" {
-        for row in data_rows {
-            if *row == "{}" { result.append(PyDict::new_bound(py))?; }
-        }
+        for row in data_rows { if *row == "{}" { result.append(PyDict::new_bound(py))?; } }
         return Ok(result);
     }
 
-    // Parse column specs
     let raw_specs: Vec<&str> = if llm_row_is_plain(header_content) {
         header_content.split(',').collect()
     } else {
@@ -1847,18 +1795,14 @@ fn decode_lumen_llm_rust<'py>(
         if b.len() >= 3 && b[b.len()-2] == b':' {
             let tc = b[b.len()-1] as char;
             if matches!(tc, 'd'|'f'|'b'|'s'|'n'|'m') {
-                keys.push(&spec[..spec.len()-2]);
-                types.push(tc);
-                continue;
+                keys.push(&spec[..spec.len()-2]); types.push(tc); continue;
             }
         }
-        keys.push(spec);
-        types.push('m');
+        keys.push(spec); types.push('m');
     }
 
     let py_keys: Vec<Bound<'py, PyString>> = keys.iter()
-        .map(|k| PyString::new_bound(py, k))
-        .collect();
+        .map(|k| PyString::new_bound(py, k)).collect();
 
     if !needs_slow {
         for row in data_rows {
@@ -1903,16 +1847,19 @@ fn decode_lumen_llm_rust<'py>(
             result.append(d)?;
         }
     }
-
     Ok(result)
 }
+
+// ---------------------------------------------------------------------------
+// Module registration
+// ---------------------------------------------------------------------------
 
 #[pymodule]
 fn _lumen_rust(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<LumenDictRust>()?;
     m.add_class::<LumenDictFullRust>()?;
     m.add("VERSION", "1.0.0")?;
-    m.add("EDITION", "Lumex Ultra Absolute #1 (Rust)")?;
+    m.add("EDITION", "LUMEN V1")?;
     m.add_function(wrap_pyfunction!(decode_binary_records_rust, m)?)?;
     m.add_function(wrap_pyfunction!(encode_lumen_llm_rust, m)?)?;
     m.add_function(wrap_pyfunction!(decode_lumen_llm_rust, m)?)?;

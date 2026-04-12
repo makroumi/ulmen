@@ -135,8 +135,9 @@ def _decode_field(tok: str, type_char: str) -> Any:
     if tok.startswith('"') and tok.endswith('"') and len(tok) >= 2:
         inner = tok[1:-1]
         # unescape in reverse order of encoding
+        inner = inner.replace('\\\\', '\\')
         inner = inner.replace('\\n', '\n').replace('\\r', '\r')
-        inner = inner.replace('""', '"').replace('\\\\', '\\')
+        inner = inner.replace('""', '"')
         return inner
     if type_char == "d":
         return int(tok)

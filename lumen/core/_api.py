@@ -25,7 +25,7 @@ from lumen.core._utils import __version__
 
 class LumenDict:
     """
-    LUMEN record container -- Python reference implementation.
+    LUMEN record container — Python reference implementation.
 
     Manages a list of records together with an automatically maintained
     string pool. Encode results (text and binary) are cached and invalidated
@@ -55,7 +55,7 @@ class LumenDict:
         self._text_cache         = None
         self._binary_raw_cache   = None
         self._binary_strat_cache = None
-        self._lumen_llm_cache        = None
+        self._lumen_llm_cache    = None
 
         if data is None:
             self._data = []
@@ -69,17 +69,29 @@ class LumenDict:
         self._pool, self._pool_map = build_pool(self._data, max_pool=64)
         self._pool_built = True
 
+    # ------------------------------------------------------------------
+    # Internal
+    # ------------------------------------------------------------------
+
     def _invalidate(self) -> None:
         self._text_cache         = None
         self._binary_raw_cache   = None
         self._binary_strat_cache = None
-        self._lumen_llm_cache        = None
+        self._lumen_llm_cache    = None
+
+    # ------------------------------------------------------------------
+    # Mutation
+    # ------------------------------------------------------------------
 
     def append(self, record: Any) -> None:
         """Append a record. Rebuilds the pool and invalidates encode caches."""
         self._data.append(record)
         self._invalidate()
         self._pool, self._pool_map = build_pool(self._data, max_pool=64)
+
+    # ------------------------------------------------------------------
+    # Introspection
+    # ------------------------------------------------------------------
 
     def __len__(self) -> int:
         return len(self._data)
@@ -89,6 +101,20 @@ class LumenDict:
 
     def __iter__(self):
         return iter(self._data)
+
+    @property
+    def pool_size(self) -> int:
+        """Number of strings currently in the interning pool."""
+        return len(self._pool)
+
+    @property
+    def record_count(self) -> int:
+        """Number of records held."""
+        return len(self._data)
+
+    # ------------------------------------------------------------------
+    # Encoders
+    # ------------------------------------------------------------------
 
     def encode_text(self, matrix_mode: bool = True) -> str:
         """Encode to LUMEN text format. Result is cached until next mutation."""
@@ -128,21 +154,24 @@ class LumenDict:
         return self._binary_strat_cache
 
     def encode_binary_zlib(self, level: int = 6) -> bytes:
-        """Encode with all strategies then compress with zlib."""
+        """Encode with all strategies then compress with zlib (level 0-9)."""
         return zlib.compress(self.encode_binary_pooled(), level)
 
     def encode_lumen_llm(self) -> str:
         """
-        Encode to LUMIA format -- the LLM-native text surface.
+        Encode to LUMIA format — the LLM-native text surface.
 
-        LUMIA is a header-prefixed CSV format where every row is self-describing.
-        No pool references, no index counting, no grammar to memorize.
+        LUMIA is a header-prefixed CSV where every row is self-describing.
         An LLM can read and generate LUMIA without any special training.
         Result is cached until next mutation.
         """
         if self._lumen_llm_cache is None:
             self._lumen_llm_cache = encode_lumen_llm(self._data)
         return self._lumen_llm_cache
+
+    # ------------------------------------------------------------------
+    # Decoders (return new instances)
+    # ------------------------------------------------------------------
 
     def decode_text(self, text: str) -> 'LumenDict':
         """Decode a LUMEN text payload into a new LumenDict."""
@@ -164,6 +193,10 @@ class LumenDict:
             decode_lumen_llm(text),
             optimizations=self._optimizations,
         )
+
+    # ------------------------------------------------------------------
+    # Utilities
+    # ------------------------------------------------------------------
 
     def to_json(self) -> str:
         """
@@ -208,13 +241,14 @@ class LumenDictFull(LumenDict):
     __slots__ = ('_pool_size_limit',)
 
     def __init__(self, data=None, pool_size_limit: int = 256) -> None:
+        # Initialise base without building pool yet
+        self._pool_size_limit    = pool_size_limit
         self._version            = __version__
         self._optimizations      = True
         self._text_cache         = None
         self._binary_raw_cache   = None
         self._binary_strat_cache = None
-        self._lumen_llm_cache        = None
-        self._pool_size_limit    = pool_size_limit
+        self._lumen_llm_cache    = None
 
         if data is None:
             self._data = []
@@ -258,19 +292,17 @@ class LumenDictFull(LumenDict):
         )
 
 
+# ---------------------------------------------------------------------------
+# Module-level shortcuts — fastest path for one-shot encode/decode
+# ---------------------------------------------------------------------------
+
 def encode_lumen_llm_direct(records: list) -> str:
-    """
-    Module-level shortcut: encode records to LUMEN LLM-native format
-    without constructing a LumenDict. Fastest path for one-shot encoding.
-    """
-    from lumen.core._lumen_llm import encode_lumen_llm
-    return encode_lumen_llm(records)
+    """Encode records to LUMIA without constructing a LumenDict."""
+    from lumen.core._lumen_llm import encode_lumen_llm as _enc
+    return _enc(records)
 
 
 def decode_lumen_llm_direct(text: str) -> list:
-    """
-    Module-level shortcut: decode LUMEN LLM-native text without
-    constructing a LumenDict. Fastest path for one-shot decoding.
-    """
-    from lumen.core._lumen_llm import decode_lumen_llm
-    return decode_lumen_llm(text)
+    """Decode LUMIA text without constructing a LumenDict."""
+    from lumen.core._lumen_llm import decode_lumen_llm as _dec
+    return _dec(text)

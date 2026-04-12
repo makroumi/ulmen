@@ -68,9 +68,9 @@ class TestConstants:
         from lumen.core import __version__
         assert __version__ == '1.0.0'
 
-    def test_edition_contains_lumex(self):
+    def test_edition_contains_lumen(self):
         from lumen.core import __edition__
-        assert 'Lumex' in __edition__
+        assert 'LUMEN' in __edition__
 
     def test_all_type_tags_distinct(self):
         tags = [
