@@ -18,7 +18,6 @@ that is drop-in compatible and byte-identical in output.
 
 ## Table of Contents
 
-- [LUMEN V1](#lumen-v1)
 - [Benchmarks](#benchmarks)
 - [At a Glance](#at-a-glance)
 - [Surfaces](#surfaces)
@@ -127,6 +126,7 @@ git clone https://github.com/makroumi/lumen
 cd lumen
 pip install maturin
 maturin develop --release
+```
 ---
 
 ## Surfaces
@@ -169,9 +169,10 @@ Bash
 pip install -e .
 The library detects automatically whether the Rust extension is available
 and falls back to the pure Python reference implementation silently.
+```
 
 Quick Start
-Python
+```Python
 
 from lumen import LumenDict, LumenDictRust, encode_lumen_llm, decode_lumen_llm
 
@@ -223,20 +224,22 @@ len(ld)                       # number of records
 ld.pool_size                  # number of interned strings
 ld[0]                         # direct index access
 LumenDictFull(data=None, pool_size_limit=256)
+```
 Extended pool variant. Strategies always enabled. Best compression
 for large repetitive datasets.
 
-Python
+```Python
 
 ldf = LumenDictFull(records, pool_size_limit=256)
 ldf.encode_binary()           # always uses full strategy selection
 ldf.encode_text()
 ldf.encode_lumen_llm()
+```
 LumenDictRust / LumenDictFullRust
 Rust-accelerated drop-in replacements. Byte-identical output.
 Available when the Rust extension is compiled.
 
-Python
+```Python
 
 from lumen import LumenDictRust, LumenDictFullRust, RUST_AVAILABLE
 
@@ -247,8 +250,9 @@ ld.encode_text()
 ld.encode_binary_pooled()
 ld.encode_binary_zlib(level=6)
 ld.encode_lumen_llm()
+```
 Module-level functions
-Python
+```Python
 
 from lumen import (
     encode_lumen_llm,       # records → LUMIA str
@@ -260,11 +264,12 @@ from lumen import (
     build_pool,             # records → (pool, pool_map)
     detect_column_strategy, # values → 'raw'|'delta'|'rle'|'bits'|'pool'
 )
+```
 LUMIA Format
 LUMIA is designed so a language model can produce valid output by filling
 in column values - no grammar to memorize, no pointers to resolve.
 
-text
+```text
 
 L|id:d,name:s,city:s,score:f,active:b
 1,Alice,London,98.5,T
@@ -279,11 +284,11 @@ Special tokens: N null · T true · F false · $0= empty string ·
 nan · inf · -inf
 
 Strings containing , " { } [ ] | : are RFC 4180 quoted.
-
+```
 LUMEN-AGENT Protocol
 Structured wire format for multi-agent AI systems.
 
-Python
+```Python
 
 from lumen import encode_agent_payload, decode_agent_payload, validate_agent_payload
 
@@ -301,19 +306,21 @@ records = [
 payload = encode_agent_payload(records)
 decoded = decode_agent_payload(payload)
 ok, err = validate_agent_payload(payload)
+```
 Record types: msg tool res plan obs err mem rag hyp cot
 
 Wire format:
 
-text
+```text
 
 LUMEN-AGENT v1
 records: N
 type|id|thread_id|step|field|field|...
+```
 Primitives
 Low-level codec functions for building custom encoders:
 
-Python
+```Python
 
 from lumen import (
     encode_varint, decode_varint,      # variable-length unsigned int
@@ -324,8 +331,9 @@ from lumen import (
     pack_delta_raw, unpack_delta_raw,  # delta encoding
     pack_rle,                          # run-length encoding
 )
+```
 Wire Format Constants
-Python
+```Python
 
 from lumen import (
     MAGIC,    # b'LUMB'
@@ -337,8 +345,9 @@ from lumen import (
     # Strategy bytes
     S_RAW, S_DELTA, S_RLE, S_BITS, S_POOL,
 )
+```
 Utilities
-Python
+```Python
 
 from lumen import (
     estimate_tokens,   # rough LLM token count (len / 4)
@@ -346,8 +355,9 @@ from lumen import (
     deep_eq,           # structural equality handling NaN and inf
     fnv1a, fnv1a_str,  # FNV-1a 32-bit hash
 )
+```
 Architecture
-text
+```text
 
 lumen/
 ├── __init__.py          public API, Rust detection and fallback
@@ -362,14 +372,16 @@ lumen/
 │   └── _api.py          LumenDict and LumenDictFull
 src/
 └── lib.rs               Rust acceleration layer (PyO3, byte-identical)
+```
 Design principle: the Python layer is the normative specification.
 The Rust layer is an optimization - same output, faster execution.
 All encode results are cached after the first call and invalidated on mutation.
 
 Running Tests
-Bash
+```Bash
 
 pytest tests/ -v
+```
 862 tests across unit, integration, and performance suites.
 All tests pass with and without the Rust extension.
 
