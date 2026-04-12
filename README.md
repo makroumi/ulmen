@@ -163,8 +163,9 @@ git clone https://github.com/makroumi/lumen
 cd lumen
 pip install maturin
 maturin develop --release
-Python only (no Rust)
 ```
+Python only (no Rust)
+
 ```Bash
 
 pip install -e .
@@ -393,8 +394,4 @@ including all tag values, encoding rules, strategy selection logic,
 and LUMIA/LUMEN-AGENT protocol details.
 
 Versioning
-Component	Version
-Library	1.0.0
-Binary wire format	1.0
-LUMIA	1.0
-LUMEN-AGENT	1.0
+1.0.0
