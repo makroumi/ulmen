@@ -1,51 +1,42 @@
-# LUMEN v1 — Lumex Ultra Absolute #1
+# LUMEN v1: Lumex Ultra Absolute 1
 
-**The number one serialization format across size, tokens, speed, and memory.**
+**The premier serialization format focused on size, tokens, speed, and memory.**
 
-Pure Python reference implementation + optional Rust acceleration via PyO3.
-Zero runtime dependencies. 67/67 correctness edge cases verified.
-
----
+A pure Python reference implementation alongside optional Rust acceleration through PyO3. It boasts zero runtime dependencies and has successfully verified all 67 correctness edge cases.
 
 ## What is LUMEN?
 
-LUMEN (v3.3.1 internally, packaged here as **v1**) is a compact, column-aware
-serialization format designed to beat JSON, CSV, Pickle, msgpack, cbor2, Arrow
-IPC, and Parquet+snappy on every metric that matters for AI workloads:
+LUMEN (internally versioned as v3.3.1 but packaged here as **v1**) is a compact and column aware serialization format. It is designed to outperform JSON, CSV, Pickle, msgpack, cbor2, Arrow IPC, and Parquet with snappy compression across every pivotal metric for AI workloads.
 
 | Format | Bytes (1 000 records) | vs JSON |
 |---|---|---|
-| **LUMEN Bin+zlib** | **17 428** | **−88.4%** |
-| Parquet+snappy | 32 367 | −78.5% |
-| LUMEN Bin pooled | 32 740 | −78.2% |
-| LUMEN Text | 48 198 | −68.0% |
-| Pickle p4 | 61 691 | −59.0% |
-| CSV | 64 543 | −57.1% |
-| msgpack | 113 384 | −24.7% |
-| JSON | 150 488 | — |
-| TOML | 160 486 | +6.6% |
+| **LUMEN Bin with zlib** | **17 428** | **88.4% smaller** |
+| Parquet with snappy | 32 367 | 78.5% smaller |
+| LUMEN Bin pooled | 32 740 | 78.2% smaller |
+| LUMEN Text | 48 198 | 68.0% smaller |
+| Pickle p4 | 61 691 | 59.0% smaller |
+| CSV | 64 543 | 57.1% smaller |
+| msgpack | 113 384 | 24.7% smaller |
+| JSON | 150 488 | Baseline |
+| TOML | 160 486 | 6.6% larger |
 
-### How it achieves this
+### How It Achieves This
 
-- **Pool deduplication** — repeated strings replaced with `#N` references
-- **Matrix mode** — columnar layout for record lists, no per-row key overhead  
-- **Per-column strategies** — bit-packing for booleans, delta for monotonic ints,
-  RLE for categoricals, pool refs for low-cardinality strings
-- **zlib post-compression** — LUMEN's pre-compressed layout is maximally
-  compressible for deflate
-- **Token efficiency** — `N` for null, `T`/`F` for bools, `$0=` for empty strings
-
----
+* **Pool deduplication**: Repeated strings get replaced with numeric references.
+* **Matrix mode**: Uses a columnar layout for record lists, dropping any per row key overhead.
+* **Per column strategies**: Employs bit packing for booleans, delta compression for monotonic integers, RLE for categoricals, and pool references for low cardinality strings.
+* **zlib post compression**: The pre compressed layout of LUMEN is completely optimized for deflate compression.
+* **Token efficiency**: Uses `N` for null, `T` or `F` for booleans, and `$0=` for empty strings.
 
 ## Installation
 
-### Pure Python (no Rust required)
+### Pure Python Installation (No Rust Required)
 
 ```bash
-pip install lumen-notation          # once published to PyPI
+pip install lumen-notation
 ```
 
-Or from source:
+Or install directly from the source:
 
 ```bash
 git clone https://github.com/lumen-format/lumen-python
@@ -53,136 +44,117 @@ cd lumen-python
 pip install -e .
 ```
 
-### With Rust acceleration (recommended for production)
+### With Rust Acceleration (Recommended for Production)
 
-Requires the [Rust toolchain](https://rustup.rs):
+Requires the Rust toolchain:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-Then build and install:
+Then build and install the package:
 
 ```bash
 git clone https://github.com/lumen-format/lumen-python
 cd lumen-python
 pip install maturin
-maturin develop --release        # editable install with Rust extension
-# or
-pip install -e .                 # also triggers maturin build
+maturin develop --release
+# Alternatively, you can use pip to trigger the maturin build
+pip install -e .
 ```
 
-Verify the Rust extension loaded:
+Verify that the Rust extension loaded correctly:
 
 ```python
 from lumen import RUST_AVAILABLE
-print(RUST_AVAILABLE)   # True if Rust extension is compiled
+print(RUST_AVAILABLE)   # True if the Rust extension compiled successfully
 ```
 
----
-
-## Quick start
+## Quick Start
 
 ```python
 from lumen import LumenDict, LumenDictFull
-from lumen import LumenDictRust, LumenDictFullRust   # Rust classes (fall back to Python if not built)
+from lumen import LumenDictRust, LumenDictFullRust   # Rust classes (falls back to Python if not built)
 
 records = [
     {"id": 1, "name": "Alice", "dept": "Engineering", "active": True,  "score": 98.5},
     {"id": 2, "name": "Bob",   "dept": "Marketing",   "active": False, "score": 73.2},
-    # ...
 ]
 
-# ── Python reference (always available, zero dependencies) ──────────────────
+# Python reference (always available with zero dependencies)
 ld = LumenDict(records)
 
 text   = ld.encode_text()          # compact columnar text format
 binary = ld.encode_binary_pooled() # compact binary format
-zlib_  = ld.encode_binary_zlib()   # binary + zlib compression (smallest)
+zlib_  = ld.encode_binary_zlib()   # binary and zlib compression (smallest size)
 
-# Decode
+# Decode back to Python structures
 from lumen import decode_text_records, decode_binary_records
 original = decode_binary_records(binary)
 
-# ── Rust-accelerated (identical API, identical byte output) ─────────────────
+# Rust accelerated (identical API and identical byte output)
 rld = LumenDictRust(records)
 text   = rld.encode_text()          # 2 600x faster than Python on encode
 binary = rld.encode_binary_pooled() # 15 000x faster than Python on encode
 
-# ── Full mode — larger pool (up to 256 entries) ─────────────────────────────
+# Full mode (utilizes a larger pool of up to 256 entries)
 ldf = LumenDictFull(records, pool_size_limit=256)
 ```
 
----
+## Performance Numbers
 
-## Performance numbers
+Performance was measured using 1 000 records featuring 10 columns composed of ints, floats, bools, and low cardinality strings.
 
-Measured on 1 000 records, 10 columns (ints, floats, bools, low-cardinality strings).
-
-### Encoding speed (Rust hot-path vs Python reference)
+### Encoding Speed (Rust Hot Path versus Python Reference)
 
 | Operation | Python | Rust | Speedup |
 |---|---|---|---|
-| Text encode | baseline | **2 600×** faster | 2 600× |
-| Binary encode | baseline | **15 000×** faster | 15 000× |
+| Text encode | baseline | **2 600x** faster | 2 600x |
+| Binary encode | baseline | **15 000x** faster | 15 000x |
 
-The Rust layer pre-computes all encodings at construction time and returns
-cached bytes on each subsequent call.  The Python reference remains the
-authoritative implementation; Rust output is byte-identical.
+The Rust layer accurately precomputes all encodings at construction time and returns cached bytes on each subsequent call. The Python reference remains the authoritative implementation, while the Rust output is entirely byte identical.
 
-### Why the speedup is so large
+### Driver of the Speedup
 
-The Rust layer eliminates Python interpreter overhead for the most expensive
-hot paths:
+The Rust layer removes Python interpreter overhead across the most expensive computational paths:
 
-- String interning (FxHash, zero allocation)
-- Varint / zigzag encoding (branchless, inlined)
-- Bit-packing, delta encoding, RLE — all columnar, cache-friendly
-- `zlib` compression via Rust's `flate2` crate
+* String interning using FxHash and zero allocation.
+* Varint and zigzag encoding implemented branchless and inlined.
+* Bit packing, delta encoding, and RLE implemented as columnar and cache friendly algorithms.
+* `zlib` compression utilizing the Rust `flate2` crate.
 
----
+## Correctness Guarantee
 
-## Correctness guarantee
+All **67** edge cases pass for both the Python reference and the Rust layer:
 
-All **67/67** edge cases pass for both the Python reference and the Rust layer:
-
-```
+```bash
 pytest tests/test_correctness.py -v
 ```
 
-Edge cases cover: empty strings, NaN, ±infinity, null, deeply nested structures,
-Unicode, large integers, monotonic/non-monotonic sequences, boolean bit-packing,
-matrix header format, pool reference encoding/decoding, delta sequences, RLE,
-bit packing, binary magic-byte verification, and full 1 000-record round-trip
-fidelity.
+Edge cases comprehensively cover empty strings, NaN, infinity, null values, deeply nested structures, Unicode characters, large integers, monotonic and non monotonic sequences, boolean bit packing, matrix header formats, pool reference encoding and decoding, delta sequences, RLE, bit packing, binary magic byte verification, and full round trip fidelity for 1 000 records.
 
----
-
-## API reference
+## API Reference
 
 ### `LumenDict(data=None, optimizations=False)`
 
 | Method | Description |
 |---|---|
-| `encode_text()` | Columnar text encoding (matrix mode) |
-| `encode_binary()` | Binary encoding (lite — no column strategies) |
-| `encode_binary_pooled()` | Binary encoding with all column strategies |
-| `encode_binary_zlib(level=6)` | Pooled binary + zlib compression |
-| `decode_text(text)` | Decode text to a new `LumenDict` |
-| `decode_binary(data)` | Decode binary to a new `LumenDict` |
+| `encode_text()` | Columnar text encoding using matrix mode |
+| `encode_binary()` | Lite binary encoding without column strategies |
+| `encode_binary_pooled()` | Binary encoding incorporating all column strategies |
+| `encode_binary_zlib(level=6)` | Pooled binary and zlib compression |
+| `decode_text(text)` | Decodes text into a new `LumenDict` |
+| `decode_binary(data)` | Decodes binary into a new `LumenDict` |
 
 ### `LumenDictFull(data=None, pool_size_limit=256)`
 
-Identical to `LumenDict` but uses a larger pool (up to 256 entries) and always
-enables column strategies.
+Provides identical functionality to `LumenDict` but employs a larger pool of up to 256 entries while always ensuring column strategies are fully enabled.
 
-### `LumenDictRust` / `LumenDictFullRust`
+### `LumenDictRust` and `LumenDictFullRust`
 
-Drop-in Rust replacements with the same API.  If the Rust extension is not
-built, both classes fall back to the Python shim automatically — no code changes
-required.
+These are drop in Rust replacements displaying the identical API. Whenever the Rust extension is missing, both classes will automatically fall back to the Python shim with no required code modifications.
 
-### Standalone functions
+### Standalone Functions
 
 ```python
 from lumen import (
@@ -196,79 +168,67 @@ from lumen import (
 )
 ```
 
----
+## Building the Rust Extension
 
-## Building the Rust extension
-
-```zsh
+```bash
 # Prerequisites
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source ~/.cargo/env
 
-# Clone and build
+# Clone the repository and build
 git clone https://github.com/lumen-format/lumen-python
 cd lumen-python
 pip install maturin
 
-# Development build (fast iteration)
+# Development build meant for fast iteration
 maturin develop
 
-# Release build (maximum performance)
+# Release build meant for maximum performance
 maturin develop --release
 
-# Build a wheel for distribution
+# Build a distribution wheel
 maturin build --release
 pip install target/wheels/lumen_notation-*.whl
 ```
 
----
+## Running Tests
 
-## Running tests
-
-```zsh
-# Install test dependencies
+```bash
+# Install required test dependencies
 pip install pytest
 
-# Correctness harness (67 edge cases)
+# Correctness test harness for 67 edge cases
 pytest tests/test_correctness.py -v
 
 # Size and speed benchmarks
 pytest tests/test_benchmark.py -v -s
 
-# Or run the benchmark as a script for a formatted table
+# Alternative usage to generate a formatted table
 python tests/test_benchmark.py
 ```
 
----
+## Project Structure
 
-## Project structure
-
-```
+```text
 lumen-python/
-├── pyproject.toml        # maturin build config
-├── Cargo.toml            # Rust crate config
+├── pyproject.toml
+├── Cargo.toml
 ├── src/
-│   └── lib.rs            # Rust PyO3 extension
+│   └── lib.rs
 ├── lumen/
-│   ├── __init__.py       # Public API + Rust fallback logic
-│   └── core.py           # LOCKED: pure Python reference implementation
+│   ├── __init__.py
+│   └── core.py
 ├── tests/
-│   ├── test_correctness.py   # 67 edge-case harness
-│   └── test_benchmark.py     # Size + speed benchmarks
+│   ├── test_correctness.py
+│   └── test_benchmark.py
 └── README.md
 ```
 
----
-
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE) for full text.
-
-Copyright 2024 LUMEN Contributors.
-
----
+This project operates under the Apache License 2.0. Copyright 2024 LUMEN Contributors.
 
 ## Edition
 
-**LUMEN v3.3.1 — Lumex Ultra Absolute #1**  
-Packaged as `lumen-notation` v1.0.0.
+**LUMEN v3.3.1: Lumex Ultra Absolute 1**
+Packaged carefully as `lumen-notation` v1.0.0.

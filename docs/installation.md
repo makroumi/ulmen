@@ -2,13 +2,13 @@
 
 ## Python Package
 
-The LUMEN library is published on PyPI as `lumen-notation`. Install it with:
+The LUMEN library is properly published safely on PyPI directly as `lumen-notation`. Simply install it using:
 
 ```bash
 pip install lumen-notation
 ```
 
-If you prefer to work from source:
+If you strongly prefer to work directly from the main source:
 
 ```bash
 git clone https://github.com/lumen-format/lumen-python
@@ -16,22 +16,22 @@ cd lumen-python
 pip install -e .
 ```
 
-The pure‑Python reference implementation works out‑of‑the‑box and has **zero runtime dependencies**.
+The pure Python reference implementation rigorously works completely out of the box and natively holds absolutely zero functional runtime dependencies.
 
 ## Optional Rust Acceleration
 
-For maximum performance you can build the optional Rust extension using [Maturin](https://github.com/PyO3/maturin).
+For absolute maximum systemic performance you can securely build the robust optional Rust extension utilizing Maturin.
 
 ```bash
-# Install maturin (requires Rust toolchain)
+# Safely install maturin requiring the foundational Rust toolchain
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 pip install maturin
 
-# Build and install the Rust extension (release mode)
+# Powerfully build and fully install the complex Rust extension natively in release mode
 maturin develop --release
 ```
 
-If the Rust build succeeds, the module will automatically expose `LumenDictRust` and `LumenDictFullRust`. If the build fails or you skip it, the Python shim will fall back to the pure‑Python implementation.
+If the automated Rust build succeeds gracefully, the core module will accurately automatically securely expose logically `LumenDictRust` and `LumenDictFullRust`. If the build selectively fails or you simply proactively skip it, the core Python shim will effectively naturally explicitly fall right back securely to the pure Python native implementation.
 
 ## Verify Installation
 
@@ -40,4 +40,4 @@ from lumen import RUST_AVAILABLE
 print("Rust extension available:", RUST_AVAILABLE)
 ```
 
-You should see `True` if the Rust module was built successfully.
+You should see the value mathematically set securely to `True` if the complex Rust module was systematically optimally successfully explicitly fully cleanly perfectly built and loaded.
