@@ -164,7 +164,8 @@ cd lumen
 pip install maturin
 maturin develop --release
 Python only (no Rust)
-Bash
+```
+```Bash
 
 pip install -e .
 The library detects automatically whether the Rust extension is available
@@ -199,11 +200,12 @@ ld_rust = LumenDictRust(records)
 binary  = ld_rust.encode_binary_pooled()
 text    = ld_rust.encode_text()
 lumia   = ld_rust.encode_lumen_llm()
+```
 API Reference
 LumenDict(data=None, optimizations=False)
 Pure Python record container. Zero dependencies.
 
-Python
+```Python
 
 ld = LumenDict(records)
 
@@ -393,6 +395,6 @@ and LUMIA/LUMEN-AGENT protocol details.
 Versioning
 Component	Version
 Library	1.0.0
-Binary wire format	3.3
+Binary wire format	1.0
 LUMIA	1.0
 LUMEN-AGENT	1.0
