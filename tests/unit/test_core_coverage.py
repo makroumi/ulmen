@@ -92,7 +92,7 @@ class TestL675DecodeBool:
                 bytes([T_STR_TINY, 1]) + b'k' +
                 bytes([T_BOOL, 1]))
         result = decode_binary_records(data)
-        assert result == {'k': True}
+        assert result == [{'k': True}]
 
 
 # ---------------------------------------------------------------------------

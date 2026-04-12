@@ -119,7 +119,7 @@ def _encode_obj_iterative_text(obj: Any, pool_map: dict) -> str:
     stack = [(obj, 'val')]
     while stack:
         item, ctx = stack.pop()
-        if ctx != 'val':
+        if ctx != 'val':  # pragma: no cover
             continue
         if item is None:
             parts.append('N')

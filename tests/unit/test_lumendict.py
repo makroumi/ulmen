@@ -458,3 +458,29 @@ class TestLumenDictFullRust:
         ldf = LumenDictFullRust([{'a': 1}])
         assert isinstance(ldf.bench_encode_text_only(5), int)
         assert isinstance(ldf.bench_encode_binary_only(5), int)
+
+
+class TestDecodeBinaryNotList:
+    def test_decode_binary_non_list_result(self):
+        # api line 158: if not isinstance(decoded, list) branch
+        # This happens when decode_binary_records returns a non-list
+        # We mock it to return a dict directly
+        from lumen.core._api import LumenDict
+        from lumen.core import encode_binary_records, decode_binary_records
+        import unittest.mock as mock
+
+        ld = LumenDict([{"id": 1}])
+        binary = ld.encode_binary_pooled()
+
+        with mock.patch("lumen.core._api.decode_binary_records", return_value={"id": 1}):
+            decoded = ld.decode_binary(binary)
+            assert len(decoded) == 1
+
+
+class TestLumenDictFullNone:
+    def test_lumendictfull_init_none(self):
+        # api line 220: LumenDictFull(None) -> self._data = []
+        from lumen.core._api import LumenDictFull
+        ldf = LumenDictFull(None)
+        assert len(ldf) == 0
+        assert ldf._data == []

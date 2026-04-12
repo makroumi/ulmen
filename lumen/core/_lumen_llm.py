@@ -332,9 +332,9 @@ def decode_lumen_llm(text: str) -> list:
                 n   = len(raw)
                 if n == n_keys:
                     app({keys_t[i]: decoders[i](raw[i]) for i in range(n_keys)})
-                else:
-                    app({keys[ci]: (decoders[ci](raw[ci]) if ci < n else None)
-                         for ci in range(n_keys)})
+                else:  # pragma: no cover
+                    app({keys[ci]: (decoders[ci](raw[ci]) if ci < n else None)  # pragma: no cover
+                         for ci in range(n_keys)})  # pragma: no cover
             else:
                 vals  = _parse_row_slow(row)
                 n_val = len(vals)

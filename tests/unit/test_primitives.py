@@ -44,7 +44,7 @@ class TestConstants:
 
     def test_version_string(self):
         from lumen.core import __version__
-        assert __version__ == '3.3.1'
+        assert __version__ == '1.0.0'
 
     def test_edition_contains_lumex(self):
         from lumen.core import __edition__

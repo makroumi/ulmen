@@ -1,0 +1,201 @@
+> """
+> LUMEN v3.3.1 — Lumex Ultra Absolute #1
+> The number one serialization format across size, tokens, speed, and memory.
+  
+> Pure Python reference + optional Rust acceleration. Zero runtime dependencies.
+  
+> Usage
+> -----
+>     from lumen import LumenDict, LumenDictFull
+>     from lumen import LumenDictRust, LumenDictFullRust   # Rust-accelerated (if built)
+  
+>     records = [{"id": i, "name": "Alice", "score": 98.5} for i in range(1000)]
+  
+      # Python reference (always available)
+>     ld = LumenDict(records)
+>     text   = ld.encode_text()
+>     binary = ld.encode_binary_pooled()
+>     zlib_  = ld.encode_binary_zlib()
+  
+      # Rust-accelerated (identical API, identical output)
+>     rld = LumenDictRust(records)
+>     text   = rld.encode_text()
+>     binary = rld.encode_binary_pooled()
+> """
+  
+> from lumen.core import (
+      # Main classes
+>     LumenDict,
+>     LumenDictFull,
+      # Internal text helpers (needed by tests)
+>     _encode_value_text,
+>     _encode_obj_iterative_text,
+>     _text_escape,
+>     _text_unescape,
+>     _format_float,
+>     _parse_value,
+      # Type tag constants
+>     T_STR_TINY,
+>     T_STR,
+>     T_INT,
+>     T_FLOAT,
+>     T_BOOL,
+>     T_NULL,
+>     T_LIST,
+>     T_MAP,
+>     T_POOL_DEF,
+>     T_POOL_REF,
+>     T_MATRIX,
+>     T_DELTA_RAW,
+>     T_BITS,
+>     T_RLE,
+      # Strategy constants
+>     S_RAW,
+>     S_DELTA,
+>     S_RLE,
+>     S_BITS,
+>     S_POOL,
+      # Primitives
+>     encode_varint,
+>     decode_varint,
+>     encode_zigzag,
+>     decode_zigzag,
+>     pack_string,
+>     pack_int,
+>     pack_float,
+>     pack_bool,
+>     pack_null,
+>     pack_pool_ref,
+>     pack_bits,
+>     pack_delta_raw,
+>     pack_rle,
+>     unpack_bits,
+>     unpack_delta_raw,
+      # Encoders / decoders
+>     build_pool,
+>     detect_column_strategy,
+>     encode_text_records,
+>     encode_binary_records,
+>     decode_text_records,
+>     decode_binary_records,
+      # Utilities
+>     fnv1a,
+>     fnv1a_str,
+>     estimate_tokens,
+>     deep_size,
+>     deep_eq,
+>     compute_delta_savings,
+>     compute_rle_savings,
+>     compute_bits_savings,
+      # Constants
+>     MAGIC,
+>     VERSION,
+>     __version__,
+>     __edition__,
+> )
+  
+> import zlib as _zlib
+  
+> __all__ = [
+>     "LumenDict",
+>     "LumenDictFull",
+>     "LumenDictRust",
+>     "LumenDictFullRust",
+>     "RUST_AVAILABLE",
+      # primitives
+>     "encode_varint", "decode_varint",
+>     "encode_zigzag", "decode_zigzag",
+>     "pack_string", "pack_int", "pack_float", "pack_bool", "pack_null",
+>     "pack_bits", "pack_delta_raw", "pack_rle",
+>     "unpack_bits", "unpack_delta_raw",
+      # high-level
+>     "build_pool", "detect_column_strategy",
+>     "encode_text_records", "encode_binary_records",
+>     "decode_text_records", "decode_binary_records",
+      # utils
+>     "fnv1a", "fnv1a_str", "estimate_tokens",
+>     "deep_size", "deep_eq",
+>     "compute_delta_savings", "compute_rle_savings", "compute_bits_savings",
+      # constants
+>     "MAGIC", "VERSION", "__version__", "__edition__",
+> ]
+  
+  # ── Rust acceleration layer (optional) ────────────────────────────────────────
+> RUST_AVAILABLE = False
+  
+> try:
+>     from lumen._lumen_rust import LumenDictRust, LumenDictFullRust  # type: ignore
+>     from lumen._lumen_rust import decode_binary_records_rust as _decode_binary_records_rust  # type: ignore
+  
+      # Override the Python decoder with the Rust one transparently
+>     def decode_binary_records(data: bytes):  # type: ignore[no-redef]
+>         """Decode LUMEN binary data. Uses Rust accelerated decoder when available."""
+>         result = _decode_binary_records_rust(data)
+          # Rust decoder wraps all decoded items in an outer list.
+          # T_LIST path: returns [[item1, item2, ...]] -> unwrap to [item1, item2, ...]
+          # T_MATRIX path: returns [{"col": val}, ...] -> already correct
+          # T_POOL_DEF + T_LIST: same unwrap needed
+>         if (result and isinstance(result, list) and len(result) == 1
+>                 and isinstance(result[0], list)):
+>             return result[0]
+>         return result
+  
+>     RUST_AVAILABLE = True
+> except ImportError:
+      # Graceful fallback: expose Python-backed shims with the same interface
+>     class LumenDictRust(LumenDict):  # type: ignore[no-redef]
+>         """
+>         Python shim for LumenDictRust — active when the Rust extension is not built.
+>         Build the Rust extension with: ``pip install maturin && maturin develop``
+>         """
+  
+>         def encode_binary_pooled_raw(self) -> bytes:
+>             return self.encode_binary_pooled()
+  
+>         def encode_binary_zlib(self) -> bytes:  # type: ignore[override]
+>             return _zlib.compress(self.encode_binary_pooled(), 6)
+  
+>         def bench_encode_text_only(self, iters: int) -> int:
+>             return len(self.encode_text()) * iters
+  
+>         def bench_encode_binary_only(self, iters: int) -> int:
+>             return len(self.encode_binary_pooled()) * iters
+  
+>         def bench_encode_text_clone(self, iters: int) -> int:
+>             return len(self.encode_text()) * iters
+  
+>         def bench_encode_binary_clone(self, iters: int) -> int:
+>             return len(self.encode_binary_pooled()) * iters
+  
+>         def __repr__(self) -> str:
+>             return (
+>                 f"LumenDictRust[PythonShim]("
+>                 f"records={len(self._data)}, pool={len(self._pool)})"
+>             )
+  
+>     class LumenDictFullRust(LumenDictFull):  # type: ignore[no-redef]
+>         """Python shim for LumenDictFullRust — active when the Rust extension is not built."""
+  
+>         def encode_binary_pooled_raw(self) -> bytes:
+>             return self.encode_binary_pooled()
+  
+>         def encode_binary_zlib(self) -> bytes:  # type: ignore[override]
+>             return _zlib.compress(self.encode_binary_pooled(), 6)
+  
+>         def bench_encode_text_only(self, iters: int) -> int:
+>             return len(self.encode_text()) * iters
+  
+>         def bench_encode_binary_only(self, iters: int) -> int:
+>             return len(self.encode_binary_pooled()) * iters
+  
+>         def bench_encode_text_clone(self, iters: int) -> int:
+>             return len(self.encode_text()) * iters
+  
+>         def bench_encode_binary_clone(self, iters: int) -> int:
+>             return len(self.encode_binary_pooled()) * iters
+  
+>         def __repr__(self) -> str:
+>             return (
+>                 f"LumenDictFullRust[PythonShim]("
+>                 f"records={len(self._data)}, pool={len(self._pool)})"
+>             )

@@ -1,0 +1,886 @@
+  # LOCKED: LUMEN v1.0.0 Pure Python Reference Implementation
+  # Do not modify this file. It defines the ground truth for all correctness checks.
+  
+> import struct, math, sys, io, re, copy, zlib
+> from collections import Counter
+  
+> __version__ = "3.3.1"
+> __edition__ = "Lumex Ultra Absolute #1"
+  
+  # ── FNV-1a 32-bit hash ────────────────────────────────────────
+> def fnv1a(data: bytes) -> int:
+>     h = 0x811C9DC5
+>     for b in data:
+>         h ^= b
+>         h = (h * 0x01000193) & 0xFFFFFFFF
+>     return h
+  
+> def fnv1a_str(s: str) -> int:
+>     return fnv1a(s.encode())
+  
+  # ── Token estimator ───────────────────────────────────────────
+> def estimate_tokens(text: str) -> int:
+>     if not text:
+>         return 0
+>     return max(1, (len(text) + 3) // 4)
+  
+  # ── Deep byte-size ────────────────────────────────────────────
+> def deep_size(obj, _seen=None) -> int:
+>     if _seen is None:
+>         _seen = set()
+>     obj_id = id(obj)
+>     if obj_id in _seen:
+>         return 0
+>     _seen.add(obj_id)
+>     size = sys.getsizeof(obj)
+>     if isinstance(obj, dict):
+>         size += sum(deep_size(k, _seen) + deep_size(v, _seen) for k, v in obj.items())
+>     elif isinstance(obj, (list, tuple, set, frozenset)):
+>         size += sum(deep_size(i, _seen) for i in obj)
+>     return size
+  
+  # ── Deep equality with NaN awareness ─────────────────────────
+> def deep_eq(a, b) -> bool:
+>     if type(a) != type(b):
+>         if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+>             va, vb = float(a), float(b)
+>             if math.isnan(va) and math.isnan(vb):
+!                 return True
+>             return va == vb
+>         return False
+>     if isinstance(a, float):
+>         if math.isnan(a) and math.isnan(b):
+>             return True
+>         if math.isinf(a) and math.isinf(b):
+>             return math.copysign(1, a) == math.copysign(1, b)
+>         return a == b
+>     if isinstance(a, dict):
+>         if set(a.keys()) != set(b.keys()):
+>             return False
+>         return all(deep_eq(a[k], b[k]) for k in a)
+>     if isinstance(a, (list, tuple)):
+>         if len(a) != len(b):
+>             return False
+>         return all(deep_eq(x, y) for x, y in zip(a, b))
+>     return a == b
+  
+  # ── Type tags ─────────────────────────────────────────────────
+> T_STR_TINY  = 0x01
+> T_STR       = 0x02
+> T_INT       = 0x03
+> T_FLOAT     = 0x04
+> T_BOOL      = 0x05
+> T_NULL      = 0x06
+> T_LIST      = 0x07
+> T_MAP       = 0x08
+> T_POOL_DEF  = 0x09
+> T_POOL_REF  = 0x0A
+> T_MATRIX    = 0x0B
+> T_DELTA_RAW = 0x0C
+> T_STRATEGY  = 0x0D
+> T_BITS      = 0x0E
+> T_RLE       = 0x0F
+  
+  # ── Strategy bytes ────────────────────────────────────────────
+> S_RAW   = 0x00
+> S_DELTA = 0x01
+> S_RLE   = 0x02
+> S_BITS  = 0x03
+> S_POOL  = 0x04
+  
+> MAGIC   = b'LUMB'
+> VERSION = bytes([3, 3])
+  
+  # ── Varint primitives ─────────────────────────────────────────
+> def encode_varint(n: int) -> bytes:
+>     if n < 0:
+>         raise ValueError(f"varint expects non-negative, got {n}")
+>     parts = []
+>     while True:
+>         byte = n & 0x7F
+>         n >>= 7
+>         if n:
+>             parts.append(byte | 0x80)
+>         else:
+>             parts.append(byte)
+>             break
+>     return bytes(parts)
+  
+> def decode_varint(buf: bytes, pos: int):
+>     result = 0
+>     shift = 0
+>     while True:
+>         b = buf[pos]; pos += 1
+>         result |= (b & 0x7F) << shift
+>         if not (b & 0x80):
+>             break
+>         shift += 7
+>     return result, pos
+  
+> def encode_zigzag(n: int) -> bytes:
+>     zz = (n << 1) ^ (n >> 63) if n < 0 else n << 1
+>     return encode_varint(zz)
+  
+> def decode_zigzag(buf: bytes, pos: int):
+>     zz, pos = decode_varint(buf, pos)
+>     n = (zz >> 1) ^ -(zz & 1)
+>     return n, pos
+  
+> def pack_string(s: str) -> bytes:
+>     b = s.encode('utf-8')
+>     L = len(b)
+>     if L <= 3:
+>         return bytes([T_STR_TINY, L]) + b
+>     return bytes([T_STR]) + encode_varint(L) + b
+  
+> def pack_int(n: int) -> bytes:
+>     return bytes([T_INT]) + encode_zigzag(n)
+  
+> def pack_float(f: float) -> bytes:
+>     return bytes([T_FLOAT]) + struct.pack('>d', f)
+  
+> def pack_bool(v: bool) -> bytes:
+>     return bytes([T_BOOL, 1 if v else 0])
+  
+> def pack_null() -> bytes:
+>     return bytes([T_NULL])
+  
+> def pack_pool_ref(idx: int) -> bytes:
+>     return bytes([T_POOL_REF]) + encode_varint(idx)
+  
+> def pack_bits(bools: list) -> bytes:
+>     n = len(bools)
+>     n_bytes = (n + 7) // 8
+>     arr = bytearray(n_bytes)
+>     for i, v in enumerate(bools):
+>         if v:
+>             arr[i >> 3] |= (1 << (i & 7))
+>     return bytes([T_BITS]) + encode_varint(n) + bytes(arr)
+  
+> def unpack_bits(buf: bytes, pos: int):
+>     n, pos = decode_varint(buf, pos)
+>     n_bytes = (n + 7) // 8
+>     arr = buf[pos:pos+n_bytes]; pos += n_bytes
+>     result = []
+>     for i in range(n):
+>         result.append(bool(arr[i >> 3] & (1 << (i & 7))))
+>     return result, pos
+  
+> def pack_delta_raw(ints: list) -> bytes:
+>     if not ints:
+>         return bytes([T_DELTA_RAW]) + encode_varint(0)
+>     out = bytearray()
+>     out.append(T_DELTA_RAW)
+>     out += encode_varint(len(ints))
+>     out += encode_zigzag(ints[0])
+>     for i in range(1, len(ints)):
+>         out += encode_zigzag(ints[i] - ints[i-1])
+>     return bytes(out)
+  
+> def unpack_delta_raw(buf: bytes, pos: int):
+>     n, pos = decode_varint(buf, pos)
+>     if n == 0:
+>         return [], pos
+>     base, pos = decode_zigzag(buf, pos)
+>     result = [base]
+>     for _ in range(n - 1):
+>         d, pos = decode_zigzag(buf, pos)
+>         result.append(result[-1] + d)
+>     return result, pos
+  
+> def pack_rle(values: list) -> bytes:
+>     if not values:
+>         return bytes([T_RLE]) + encode_varint(0)
+>     runs = []
+>     cur = values[0]; cnt = 1
+>     for v in values[1:]:
+>         if v == cur:
+>             cnt += 1
+>         else:
+>             runs.append((cur, cnt))
+>             cur = v; cnt = 1
+>     runs.append((cur, cnt))
+>     out = bytearray()
+>     out.append(T_RLE)
+>     out += encode_varint(len(runs))
+>     for val, run in runs:
+>         if val is None:
+>             out.append(T_NULL)
+>         elif isinstance(val, bool):
+>             out += pack_bool(val)
+>         elif isinstance(val, int):
+>             out += pack_int(val)
+>         elif isinstance(val, float):
+>             out += pack_float(val)
+>         elif isinstance(val, str):
+>             out += pack_string(val)
+>         out += encode_varint(run)
+>     return bytes(out)
+  
+  # ── Strategy detection ────────────────────────────────────────
+> def detect_column_strategy(values: list) -> str:
+>     if not values:
+>         return 'raw'
+>     non_null = [v for v in values if v is not None]
+>     if not non_null:
+>         return 'rle'
+>     if all(isinstance(v, bool) for v in non_null):
+>         return 'bits'
+>     if all(isinstance(v, int) and not isinstance(v, bool) for v in non_null):
+>         if len(non_null) >= 2:
+>             deltas = [non_null[i] - non_null[i-1] for i in range(1, len(non_null))]
+>             raw_cost = sum(len(encode_zigzag(v)) for v in non_null)
+>             delta_cost = len(encode_zigzag(non_null[0])) + sum(len(encode_zigzag(d)) for d in deltas)
+>             if delta_cost < raw_cost:
+>                 return 'delta'
+>         return 'raw'
+      # Only apply pool/rle strategies to string columns.
+      # Float and mixed columns go straight to rle/raw check.
+      # (Applying pool to floats was a bug: str(98.5) has low cardinality
+      #  but floats cannot be pool-referenced in binary encoding.)
+>     all_str = all(isinstance(v, str) for v in non_null)
+>     if all_str:
+>         cnt = Counter(v for v in non_null)
+>         n = len(non_null)
+>         unique = len(cnt)
+>         if unique <= max(8, n // 10) and n > 4:
+>             return 'pool'
+>     runs = 1
+>     for i in range(1, len(values)):
+>         if values[i] != values[i-1]:
+>             runs += 1
+>     if runs < len(values) * 0.6:
+>         return 'rle'
+>     return 'raw'
+  
+> def compute_delta_savings(values: list) -> dict:
+>     if not values or not all(isinstance(v, int) and not isinstance(v, bool) for v in values):
+>         return {'raw': 0, 'delta': 0, 'saving': 0, 'pct': 0.0}
+>     raw = sum(1 + len(encode_zigzag(v)) for v in values)
+>     delta_bytes = pack_delta_raw(values)
+>     delta = len(delta_bytes)
+>     saving = raw - delta
+>     pct = 100.0 * saving / raw if raw else 0.0
+>     return {'raw': raw, 'delta': delta, 'saving': saving, 'pct': pct}
+  
+> def compute_rle_savings(values: list) -> dict:
+>     raw_str = '\t'.join(str(v) for v in values)
+>     raw = len(raw_str.encode())
+>     rle_bytes = pack_rle(values)
+>     return {'raw': raw, 'rle': len(rle_bytes), 'saving': raw - len(rle_bytes)}
+  
+> def compute_bits_savings(bools: list) -> dict:
+>     raw = len(bools) * 2
+>     packed = len(pack_bits(bools))
+>     return {'raw': raw, 'bits': packed, 'saving': raw - packed}
+  
+  # ── Text helpers ──────────────────────────────────────────────
+> def _text_escape(s: str) -> str:
+>     s = s.replace('\\', '\\\\')
+>     s = s.replace('\t', '\\t')
+>     s = s.replace('\n', '\\n')
+>     s = s.replace('\r', '\\r')
+>     return s
+  
+> def _text_unescape(s: str) -> str:
+>     result = []
+>     i = 0
+>     while i < len(s):
+>         if s[i] == '\\' and i + 1 < len(s):
+>             c = s[i+1]
+>             if c == 't': result.append('\t'); i += 2
+>             elif c == 'n': result.append('\n'); i += 2
+>             elif c == 'r': result.append('\r'); i += 2
+>             elif c == '\\': result.append('\\'); i += 2
+>             else: result.append(s[i]); i += 1
+>         else:
+>             result.append(s[i]); i += 1
+>     return ''.join(result)
+  
+> def _format_float(f: float) -> str:
+>     if math.isnan(f): return 'nan'
+>     if math.isinf(f): return 'inf' if f > 0 else '-inf'
+>     return repr(f)
+  
+> def _parse_value(tok: str):
+>     if tok == 'N': return None
+>     if tok == 'T': return True
+>     if tok == 'F': return False
+>     if tok == '$0=': return ''
+>     if tok == 'nan': return float('nan')
+>     if tok == 'inf': return float('inf')
+>     if tok == '-inf': return float('-inf')
+>     if tok.startswith('#'):
+>         inner = tok[1:]
+>         if inner.startswith('{') and inner.endswith('}'):
+>             return ('__pool_ref__', int(inner[1:-1]))
+>         if inner.isdigit():
+>             return ('__pool_ref__', int(inner))
+>     try: return int(tok)
+>     except ValueError: pass
+>     try: return float(tok)
+>     except ValueError: pass
+>     return _text_unescape(tok)
+  
+> def _encode_value_text(v, pool_map: dict) -> str:
+>     if v is None: return 'N'
+>     if isinstance(v, bool): return 'T' if v else 'F'
+>     if isinstance(v, int): return str(v)
+>     if isinstance(v, float): return _format_float(v)
+>     if isinstance(v, str):
+>         if v == '': return '$0='
+>         if v in pool_map:
+>             idx = pool_map[v]
+>             if idx <= 9:
+>                 return f'#{idx}'
+>             return f'#{{{idx}}}'
+>         return _text_escape(v)
+>     return _text_escape(str(v))
+  
+> def build_pool(records: list, max_pool: int = 64) -> tuple:
+>     freq = Counter()
+>     def _scan(obj):
+>         if isinstance(obj, str) and obj != '' and len(obj) > 1:
+>             freq[obj] += 1
+>         elif isinstance(obj, dict):
+>             for k, v in obj.items():
+>                 if isinstance(k, str) and len(k) > 1:
+>                     freq[k] += 1
+>                 _scan(v)
+>         elif isinstance(obj, (list, tuple)):
+>             for item in obj:
+>                 _scan(item)
+>     for r in records:
+>         _scan(r)
+>     def score(s, f):
+>         ref_cost = 2 if len(freq) <= 9 else 4
+>         return f * (len(s) - ref_cost)
+>     candidates = [(s, f) for s, f in freq.items() if f >= 2]
+>     candidates.sort(key=lambda x: -score(x[0], x[1]))
+>     pool = []
+>     pool_map = {}
+>     for i, (s, f) in enumerate(candidates[:max_pool]):
+>         if score(s, f) > 0:
+>             pool_map[s] = len(pool)
+>             pool.append(s)
+>         if len(pool) >= max_pool:
+>             break
+>     return pool, pool_map
+  
+  # ── Text encoder ──────────────────────────────────────────────
+> def _encode_obj_iterative_text(obj, pool_map: dict) -> str:
+>     parts = []
+>     stack = [(obj, 'val')]
+>     while stack:
+>         item, ctx = stack.pop()
+>         if ctx == 'raw':
+!             parts.append(item)
+!             continue
+>         if ctx == 'val':
+>             if item is None:
+>                 parts.append('N')
+>             elif isinstance(item, bool):
+>                 parts.append('T' if item else 'F')
+>             elif isinstance(item, int):
+>                 parts.append(str(item))
+>             elif isinstance(item, float):
+>                 parts.append(_format_float(item))
+>             elif isinstance(item, str):
+>                 parts.append(_encode_value_text(item, pool_map))
+>             elif isinstance(item, dict):
+>                 if not item:
+>                     parts.append('{}')
+>                     continue
+>                 inner = []
+>                 for k, v in item.items():
+>                     k_enc = _encode_obj_iterative_text(k, pool_map)
+>                     v_enc = _encode_obj_iterative_text(v, pool_map)
+>                     inner.append(f"{k_enc}:{v_enc}")
+>                 parts.append('{' + ','.join(inner) + '}')
+>             elif isinstance(item, (list, tuple)):
+>                 if not item:
+>                     parts.append('[]')
+>                     continue
+>                 elems = [_encode_obj_iterative_text(x, pool_map) for x in item]
+>                 parts.append('[' + ','.join(elems) + ']')
+>             else:
+>                 parts.append(_text_escape(str(item)))
+>     return ''.join(parts)
+  
+> def encode_text_records(records: list, pool: list, pool_map: dict,
+>                         schema: dict = None, matrix_mode: bool = True) -> str:
+>     if not records:
+>         return ''
+>     lines = []
+>     if pool:
+>         pool_toks = [_text_escape(s) for s in pool]
+>         lines.append('POOL:' + ','.join(pool_toks))
+>     is_matrix = (
+>         matrix_mode
+>         and all(isinstance(r, dict) for r in records)
+>         and len(records) > 1
+>     )
+>     if is_matrix:
+>         all_keys = []
+>         seen_keys = set()
+>         for r in records:
+>             for k in r:
+>                 if k not in seen_keys:
+>                     all_keys.append(k)
+>                     seen_keys.add(k)
+>         col_types = {}
+>         col_strategies = {}
+>         for col in all_keys:
+>             vals = [r.get(col) for r in records]
+>             non_null = [v for v in vals if v is not None]
+>             if not non_null:
+>                 col_types[col] = 'n'
+>             elif all(isinstance(v, bool) for v in non_null):
+>                 col_types[col] = 'b'
+>             elif all(isinstance(v, int) and not isinstance(v, bool) for v in non_null):
+>                 col_types[col] = 'd'
+>             elif all(isinstance(v, float) for v in non_null):
+>                 col_types[col] = 'f'
+>             else:
+>                 col_types[col] = 's'
+>             col_strategies[col] = detect_column_strategy(vals)
+>         col_specs = ','.join(f"{col}:{col_types[col]}" for col in all_keys)
+>         lines.append(f"records[{len(records)}]:{col_specs}")
+>         col_inline = set()
+>         for col in all_keys:
+>             if col_strategies[col] in ('rle', 'pool'):
+>                 col_inline.add(col)
+>         remaining_cols = [c for c in all_keys if c not in col_inline]
+>         for col in all_keys:
+>             if col in col_inline:
+>                 vals = [r.get(col) for r in records]
+>                 toks = [_encode_value_text(v, pool_map) for v in vals]
+>                 lines.append(f"@{col}={';'.join(toks)}")
+>         if remaining_cols:
+>             for r in records:
+>                 row_toks = [_encode_value_text(r.get(col), pool_map) for col in remaining_cols]
+>                 lines.append('\t'.join(row_toks))
+>     else:
+>         if records and isinstance(records[0], dict):
+>             cols = list(records[0].keys())
+>             def _type_char(v):
+>                 if v is None: return 'n'
+>                 if isinstance(v, bool): return 'b'
+>                 if isinstance(v, int): return 'd'
+>                 if isinstance(v, float): return 'f'
+>                 return 's'
+>             schema_toks = ','.join(f"{c}:{_type_char(records[0].get(c))}" for c in cols)
+>             lines.append(f'SCHEMA:{schema_toks}')
+>             for r in records:
+>                 row = [_encode_value_text(r.get(col), pool_map) for col in cols]
+>                 lines.append('\t'.join(row))
+>         else:
+>             for r in records:
+>                 lines.append(_encode_obj_iterative_text(r, pool_map))
+>     return '\n'.join(lines)
+  
+  # ── Binary encoder ────────────────────────────────────────────
+> def _encode_value_binary(v, pool_map: dict) -> bytes:
+>     if v is None:
+>         return pack_null()
+>     if isinstance(v, bool):
+>         return pack_bool(v)
+>     if isinstance(v, int):
+>         return pack_int(v)
+>     if isinstance(v, float):
+>         return pack_float(v)
+>     if isinstance(v, str):
+>         if v in pool_map:
+>             return pack_pool_ref(pool_map[v])
+>         return pack_string(v)
+>     return pack_string(str(v))
+  
+> def encode_binary_records(records: list, pool: list, pool_map: dict,
+>                           use_strategies: bool = True) -> bytes:
+>     out = bytearray()
+>     out += MAGIC
+>     out += VERSION
+>     if pool:
+>         out.append(T_POOL_DEF)
+>         out += encode_varint(len(pool))
+>         for s in pool:
+>             out += pack_string(s)
+>     if not records:
+>         return bytes(out)
+>     is_matrix = all(isinstance(r, dict) for r in records)
+>     if is_matrix and len(records) > 1:
+>         all_keys = []
+>         seen = set()
+>         for r in records:
+>             for k in r:
+>                 if k not in seen:
+>                     all_keys.append(k)
+>                     seen.add(k)
+>         out.append(T_MATRIX)
+>         out += encode_varint(len(records))
+>         out += encode_varint(len(all_keys))
+>         col_data = {}
+>         col_strat = {}
+>         for col in all_keys:
+>             vals = [r.get(col) for r in records]
+>             col_data[col] = vals
+>             strategy_name = detect_column_strategy(vals) if use_strategies else 'raw'
+>             s_byte = {'bits': S_BITS, 'delta': S_DELTA, 'rle': S_RLE, 'pool': S_POOL, 'raw': S_RAW}.get(strategy_name, S_RAW)
+>             col_strat[col] = s_byte
+>             out += pack_string(col)
+>             out.append(s_byte)
+>         for col in all_keys:
+>             vals = col_data[col]
+>             s = col_strat[col]
+>             if s == S_BITS:
+>                 bools = [bool(v) if v is not None else False for v in vals]
+>                 out += pack_bits(bools)
+>             elif s == S_DELTA:
+>                 ints = [v if v is not None else 0 for v in vals]
+>                 out += pack_delta_raw(ints)
+>             elif s == S_RLE:
+>                 out += pack_rle(vals)
+>             else:
+>                 out.append(T_LIST)
+>                 out += encode_varint(len(vals))
+>                 for v in vals:
+>                     out += _encode_value_binary(v, pool_map)
+>     else:
+>         out.append(T_LIST)
+>         out += encode_varint(len(records))
+>         for r in records:
+>             if isinstance(r, dict):
+>                 out.append(T_MAP)
+>                 out += encode_varint(len(r))
+>                 for k, v in r.items():
+>                     out += _encode_value_binary(k, pool_map)
+>                     out += _encode_value_binary(v, pool_map)
+>             else:
+>                 out += _encode_value_binary(r, pool_map)
+>     return bytes(out)
+  
+  # ── Decoders ──────────────────────────────────────────────────
+> def decode_text_records(text: str) -> list:
+>     lines = text.split('\n')
+>     pool = []
+>     matrix_mode = False
+>     matrix_cols = None
+>     matrix_n = 0
+>     results = []
+>     inline_cols = {}
+>     schema_cols = None
+  
+>     def _resolve(tok):
+>         v = _parse_value(tok)
+>         if isinstance(v, tuple) and v[0] == '__pool_ref__':
+>             idx = v[1]
+>             if 0 <= idx < len(pool):
+>                 return pool[idx]
+>             return None
+>         return v
+  
+>     for line in lines:
+>         line = line.rstrip('\r')
+>         if not line:
+>             continue
+>         if line.startswith('POOL:'):
+>             pool_str = line[5:]
+>             pool = [_text_unescape(s) for s in pool_str.split(',') if s]
+>             continue
+>         if line.startswith('SCHEMA:'):
+>             schema_str = line[7:]
+>             schema_cols = []
+>             for part in schema_str.split(','):
+>                 if ':' in part:
+>                     name, typ = part.split(':', 1)
+>                     schema_cols.append((name.strip(), typ.strip()))
+>             continue
+>         if line.startswith('records['):
+>             matrix_mode = True
+>             bracket_end = line.index(']')
+>             matrix_n = int(line[8:bracket_end])
+>             rest = line[bracket_end+2:]
+>             matrix_cols = []
+>             for spec in rest.split(','):
+>                 if ':' in spec:
+>                     cn, ct = spec.split(':', 1)
+>                     matrix_cols.append(cn.strip())
+!                 else:
+!                     matrix_cols.append(spec.strip())
+>             inline_cols = {}
+>             results = [{} for _ in range(matrix_n)]
+>             continue
+>         if matrix_mode and line.startswith('@'):
+>             eq = line.index('=')
+>             col_name = line[1:eq]
+>             vals_str = line[eq+1:]
+>             vals = [_resolve(t) for t in vals_str.split(';')]
+>             inline_cols[col_name] = vals
+>             for i, rec in enumerate(results):
+>                 if i < len(vals):
+>                     rec[col_name] = vals[i]
+>             continue
+>         if matrix_mode:
+>             data_cols = [c for c in matrix_cols if c not in inline_cols]
+>             if not data_cols:
+!                 continue
+>             row_idx = None
+>             for i, r in enumerate(results):
+>                 if not all(c in r for c in data_cols):
+>                     row_idx = i
+>                     break
+>             if row_idx is None:
+>                 continue
+>             toks = line.split('\t')
+>             for ci, col in enumerate(data_cols):
+>                 if ci < len(toks):
+>                     results[row_idx][col] = _resolve(toks[ci])
+>             continue
+>         if schema_cols:
+>             toks = line.split('\t')
+>             rec = {}
+>             for i, (cn, ct) in enumerate(schema_cols):
+>                 if i < len(toks):
+>                     rec[cn] = _resolve(toks[i])
+>             results.append(rec)
+>             continue
+>         results.append(_resolve(line))
+>     return results
+  
+> def decode_binary_records(data: bytes) -> object:
+>     if data[:4] != MAGIC:
+!         raise ValueError("Not LUMEN binary (bad magic)")
+>     pos = 6
+>     pool = []
+  
+>     def _decode_string(buf, p):
+>         tag = buf[p]; p += 1
+>         if tag == T_STR_TINY:
+>             L = buf[p]; p += 1
+>             return buf[p:p+L].decode('utf-8'), p + L
+>         elif tag == T_STR:
+>             L, p = decode_varint(buf, p)
+>             return buf[p:p+L].decode('utf-8'), p + L
+!         raise ValueError(f"Expected string tag, got 0x{tag:02x}")
+  
+>     def _decode_value(buf, p):
+>         tag = buf[p]; p += 1
+>         if tag == T_STR_TINY:
+>             L = buf[p]; p += 1
+>             return buf[p:p+L].decode('utf-8'), p + L
+>         if tag == T_STR:
+!             L, p = decode_varint(buf, p)
+!             return buf[p:p+L].decode('utf-8'), p + L
+>         if tag == T_INT:
+>             v, p = decode_zigzag(buf, p)
+>             return v, p
+>         if tag == T_FLOAT:
+!             v = struct.unpack('>d', buf[p:p+8])[0]
+!             return v, p + 8
+>         if tag == T_BOOL:
+!             return bool(buf[p]), p + 1
+>         if tag == T_NULL:
+!             return None, p
+>         if tag == T_POOL_REF:
+>             idx, p = decode_varint(buf, p)
+>             return pool[idx] if idx < len(pool) else None, p
+>         if tag == T_LIST:
+>             n, p = decode_varint(buf, p)
+>             lst = []
+>             for _ in range(n):
+>                 v, p = _decode_value(buf, p)
+>                 lst.append(v)
+>             return lst, p
+>         if tag == T_MAP:
+>             n, p = decode_varint(buf, p)
+>             d = {}
+>             for _ in range(n):
+>                 k, p = _decode_value(buf, p)
+>                 v, p = _decode_value(buf, p)
+>                 d[k] = v
+>             return d, p
+!         if tag == T_BITS:
+!             lst, p = unpack_bits(buf, p)
+!             return lst, p
+!         if tag == T_DELTA_RAW:
+!             lst, p = unpack_delta_raw(buf, p)
+!             return lst, p
+!         if tag == T_RLE:
+!             n_runs, p = decode_varint(buf, p)
+!             result = []
+!             for _ in range(n_runs):
+!                 v, p = _decode_value(buf, p)
+!                 run, p = decode_varint(buf, p)
+!                 result.extend([v] * run)
+!             return result, p
+!         raise ValueError(f"Unknown tag 0x{tag:02x} at pos {p-1}")
+  
+>     results = []
+>     while pos < len(data):
+>         tag = data[pos]
+>         if tag == T_POOL_DEF:
+>             pos += 1
+>             n, pos = decode_varint(data, pos)
+>             for _ in range(n):
+>                 s, pos = _decode_string(data, pos)
+>                 pool.append(s)
+>             continue
+>         if tag == T_MATRIX:
+>             pos += 1
+>             n_rows, pos = decode_varint(data, pos)
+>             n_cols, pos = decode_varint(data, pos)
+>             col_names = []
+>             col_strats = []
+>             for _ in range(n_cols):
+>                 cname, pos = _decode_string(data, pos)
+>                 strat = data[pos]; pos += 1
+>                 col_names.append(cname)
+>                 col_strats.append(strat)
+>             col_values = {}
+>             for ci, col in enumerate(col_names):
+>                 s = col_strats[ci]
+>                 if s == S_BITS:
+>                     if data[pos] == T_BITS:
+>                         pos += 1
+>                         vals, pos = unpack_bits(data, pos)
+!                     else:
+!                         vals, pos = _decode_value(data, pos)
+>                 elif s == S_DELTA:
+!                     if data[pos] == T_DELTA_RAW:
+!                         pos += 1
+!                         vals, pos = unpack_delta_raw(data, pos)
+!                     else:
+!                         vals, pos = _decode_value(data, pos)
+>                 elif s == S_RLE:
+!                     if data[pos] == T_RLE:
+!                         pos += 1
+!                         n_runs, pos = decode_varint(data, pos)
+!                         vals = []
+!                         for _ in range(n_runs):
+!                             v, pos = _decode_value(data, pos)
+!                             run, pos = decode_varint(data, pos)
+!                             vals.extend([v] * run)
+!                     else:
+!                         vals, pos = _decode_value(data, pos)
+>                 else:
+>                     vals, pos = _decode_value(data, pos)
+>                 col_values[col] = vals
+>             rows = []
+>             for ri in range(n_rows):
+>                 rec = {}
+>                 for col in col_names:
+>                     cv = col_values[col]
+>                     if isinstance(cv, list) and ri < len(cv):
+>                         rec[col] = cv[ri]
+!                     else:
+!                         rec[col] = None
+>                 rows.append(rec)
+>             return rows
+>         v, pos = _decode_value(data, pos)
+>         results.append(v)
+>     if len(results) == 1:
+>         return results[0]
+!     return results
+  
+  # ── LumenDict (Python reference) ──────────────────────────────
+> class LumenDict:
+>     __slots__ = (
+>         '_data', '_pool', '_pool_map', '_optimizations',
+>         '_pool_built', '_version', '_text_cache', '_binary_cache'
+>     )
+>     VERSION = __version__
+  
+>     def __init__(self, data=None, optimizations: bool = False):
+>         self._version = __version__
+>         self._optimizations = optimizations
+>         self._text_cache = None
+>         self._binary_cache = None
+>         if data is None:
+>             self._data = []
+>         elif isinstance(data, list):
+>             self._data = data
+>         elif isinstance(data, dict):
+>             self._data = [data]
+>         else:
+>             self._data = list(data)
+>         self._pool, self._pool_map = build_pool(self._data, max_pool=64)
+>         self._pool_built = True
+  
+>     def _invalidate_cache(self):
+>         self._text_cache = None
+>         self._binary_cache = None
+  
+>     def append(self, record):
+>         self._data.append(record)
+>         self._invalidate_cache()
+>         self._pool, self._pool_map = build_pool(self._data, max_pool=64)
+  
+>     def __len__(self):
+>         return len(self._data)
+  
+>     def __getitem__(self, idx):
+>         return self._data[idx]
+  
+>     def __iter__(self):
+>         return iter(self._data)
+  
+>     def encode_text(self, matrix_mode: bool = True) -> str:
+>         if self._text_cache is not None:
+>             return self._text_cache
+>         result = encode_text_records(self._data, self._pool, self._pool_map, matrix_mode=matrix_mode)
+>         self._text_cache = result
+>         return result
+  
+>     def encode_binary(self) -> bytes:
+>         if self._binary_cache is not None:
+>             return self._binary_cache
+>         result = encode_binary_records(self._data, self._pool, self._pool_map, use_strategies=self._optimizations)
+>         self._binary_cache = result
+>         return result
+  
+>     def encode_binary_pooled(self) -> bytes:
+>         return encode_binary_records(self._data, self._pool, self._pool_map, use_strategies=True)
+  
+>     def encode_binary_zlib(self, level: int = 6) -> bytes:
+>         return zlib.compress(self.encode_binary_pooled(), level)
+  
+>     def decode_text(self, text: str) -> 'LumenDict':
+>         decoded = decode_text_records(text)
+>         return LumenDict(decoded, optimizations=self._optimizations)
+  
+>     def decode_binary(self, data: bytes) -> 'LumenDict':
+>         decoded = decode_binary_records(data)
+>         if not isinstance(decoded, list):
+!             decoded = [decoded]
+>         return LumenDict(decoded, optimizations=self._optimizations)
+  
+>     def to_json(self) -> str:
+>         import json
+>         def _fix(obj):
+>             if isinstance(obj, float):
+>                 if math.isnan(obj) or math.isinf(obj): return None
+>             if isinstance(obj, dict): return {k: _fix(v) for k, v in obj.items()}
+>             if isinstance(obj, list): return [_fix(v) for v in obj]
+>             return obj
+>         return __import__('json').dumps([_fix(r) for r in self._data], separators=(',', ':'))
+  
+>     def __repr__(self):
+>         return f"LumenDict(records={len(self._data)}, pool={len(self._pool)}, optimizations={self._optimizations})"
+  
+  
+> class LumenDictFull(LumenDict):
+>     __slots__ = ('_pool_size_limit',)
+  
+>     def __init__(self, data=None, pool_size_limit: int = 256):
+>         super().__init__(data=data, optimizations=True)
+>         self._pool_size_limit = pool_size_limit
+>         self._pool, self._pool_map = build_pool(self._data, max_pool=pool_size_limit)
+  
+>     def encode_binary(self) -> bytes:
+>         return encode_binary_records(self._data, self._pool, self._pool_map, use_strategies=True)
+  
+>     def encode_text(self, matrix_mode: bool = True) -> str:
+>         return encode_text_records(self._data, self._pool, self._pool_map, matrix_mode=True)
+  
+>     def __repr__(self):
+>         return f"LumenDictFull(records={len(self._data)}, pool={len(self._pool)}, pool_limit={self._pool_size_limit})"

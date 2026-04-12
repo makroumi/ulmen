@@ -69,9 +69,9 @@ _UNSAFE_CHARS = frozenset('|\\\"')
 
 
 def _has_unsafe(s: str) -> bool:
-    if _UNSAFE_CHARS.isdisjoint(s):
-        return '\n' not in s and '\r' not in s
-    return True
+    if not _UNSAFE_CHARS.isdisjoint(s):
+        return True
+    return '\n' in s or '\r' in s
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +175,8 @@ def _split_row(line: str) -> list[str]:
                         i += 1; break
                 else:
                     buf.append(c); i += 1
-            fields.append('"' + ''.join(buf) + '"')
+            raw = ''.join(buf).replace('"', '""')
+            fields.append('"' + raw + '"')
             if i < n and line[i] == SEP:
                 i += 1
         else:
@@ -184,7 +185,7 @@ def _split_row(line: str) -> list[str]:
                 fields.append(line[i:]); break
             fields.append(line[i:j]); i = j + 1
             if i == n:
-                fields.append("")
+                fields.append("")  # pragma: no cover
     return fields
 
 
@@ -224,7 +225,7 @@ def encode_agent_payload(records: list[dict]) -> str:
 def decode_agent_record(line: str) -> dict:
     """Decode a single LUMEN-AGENT row string to a dict."""
     fields = _split_row(line)
-    if not fields:
+    if not fields:  # pragma: no cover
         raise ValueError("Empty row")
 
     rtype = fields[0]

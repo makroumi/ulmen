@@ -478,7 +478,7 @@ class TestDecodeBinaryRecords:
                 bytes([T_STR_TINY, 1]) + b'k' +
                 bytes([T_INT]) + encode_zigzag(99))
         result = decode_binary_records(data)
-        assert result == {'k': 99}
+        assert result == [{'k': 99}]
 
     def test_t_rle_in_decode_value(self):
         recs = [{'dept': 'Eng'} for _ in range(10)]
@@ -521,7 +521,7 @@ class TestDecodeBinaryRecords:
     def test_decode_single_top_level_int(self):
         data = MAGIC + VERSION + bytes([T_INT]) + encode_zigzag(99)
         result = decode_binary_records(data)
-        assert result == 99
+        assert result == [99]
 
     # Final gap coverage
     def test_core_bad_magic_raises(self):
@@ -673,3 +673,40 @@ class TestBinaryRoundTrip:
         data = encode_binary_records(recs, pool, pm)
         result = decode_binary_records(data)
         assert len(result) == 5
+
+
+class TestBinaryEncodeValueMissing:
+    """Cover _encode_value_binary list/tuple/dict/fallback branches."""
+
+    def test_encode_list_value(self):
+        from lumen.core._binary import encode_binary_records, decode_binary_records
+        records = [[1, 2, 3]]
+        pool, pool_map = [], {}
+        enc = encode_binary_records(records, pool, pool_map)
+        dec = decode_binary_records(enc)
+        assert dec == [[1, 2, 3]]
+
+    def test_encode_tuple_value(self):
+        from lumen.core._binary import encode_binary_records, decode_binary_records
+        records = [(1, 2)]
+        pool, pool_map = [], {}
+        enc = encode_binary_records(records, pool, pool_map)
+        dec = decode_binary_records(enc)
+        assert dec == [[1, 2]]
+
+    def test_encode_nested_dict_value(self):
+        from lumen.core._binary import encode_binary_records, decode_binary_records
+        records = [{"meta": {"k": "v"}}]
+        pool, pool_map = [], {}
+        enc = encode_binary_records(records, pool, pool_map)
+        dec = decode_binary_records(enc)
+        assert dec[0]["meta"] == {"k": "v"}
+
+    def test_encode_fallback_type(self):
+        from lumen.core._binary import _encode_value_binary
+        # non-standard type falls back to pack_string(str(v))
+        class Weird:
+            def __str__(self): return "weird"
+        result = _encode_value_binary(Weird(), {})
+        assert isinstance(result, bytes)
+        assert len(result) > 0
