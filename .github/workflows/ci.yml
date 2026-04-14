@@ -61,6 +61,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
+          source .venv/bin/activate
           pytest tests/ -v \
             --cov=ulmen \
             --cov-report=term-missing \
