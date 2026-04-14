@@ -1,5 +1,5 @@
 """
-Unit tests for low-level primitives in lumen.core:
+Unit tests for low-level primitives in ulmen.core:
   - FNV-1a hash
   - estimate_tokens / deep_size / deep_eq
   - Varint / Zigzag encoding
@@ -12,7 +12,7 @@ import struct
 
 import pytest
 
-from lumen.core import (
+from ulmen.core import (
     T_BITS,
     T_BOOL,
     T_DELTA_RAW,
@@ -57,32 +57,32 @@ from lumen.core import (
 
 class TestConstants:
     def test_magic(self):
-        from lumen.core import MAGIC
+        from ulmen.core import MAGIC
         assert MAGIC == b'LUMB'
 
     def test_version_bytes(self):
-        from lumen.core import VERSION
+        from ulmen.core import VERSION
         assert bytes([3, 3]) == VERSION
 
     def test_version_string(self):
-        from lumen.core import __version__
+        from ulmen.core import __version__
         assert __version__ == '1.0.0'
 
-    def test_edition_contains_lumen(self):
-        from lumen.core import __edition__
-        assert 'LUMEN' in __edition__
+    def test_edition_contains_ulmen(self):
+        from ulmen.core import __edition__
+        assert 'ULMEN' in __edition__
 
     def test_all_type_tags_distinct(self):
         tags = [
             T_STR_TINY, T_STR, T_INT, T_FLOAT, T_BOOL, T_NULL,
             T_POOL_REF, T_BITS, T_DELTA_RAW, T_RLE,
         ]
-        from lumen.core import T_LIST, T_MAP, T_MATRIX, T_POOL_DEF, T_STRATEGY
+        from ulmen.core import T_LIST, T_MAP, T_MATRIX, T_POOL_DEF, T_STRATEGY
         tags += [T_LIST, T_MAP, T_POOL_DEF, T_MATRIX, T_STRATEGY]
         assert len(tags) == len(set(tags))
 
     def test_strategy_bytes_distinct(self):
-        from lumen.core import S_BITS, S_DELTA, S_POOL, S_RAW, S_RLE
+        from ulmen.core import S_BITS, S_DELTA, S_POOL, S_RAW, S_RLE
         vals = [S_RAW, S_DELTA, S_RLE, S_BITS, S_POOL]
         assert len(vals) == len(set(vals))
 
@@ -95,7 +95,7 @@ class TestConstants:
         assert T_NULL     == 0x06
 
     def test_strategy_bytes_values(self):
-        from lumen.core import S_BITS, S_DELTA, S_POOL, S_RAW, S_RLE
+        from ulmen.core import S_BITS, S_DELTA, S_POOL, S_RAW, S_RLE
         assert S_RAW   == 0x00
         assert S_DELTA == 0x01
         assert S_RLE   == 0x02

@@ -1,11 +1,11 @@
 """
 Minimal pure-Python MessagePack packer — zero external dependencies.
 
-Implements only packb() for the subset used in LUMEN benchmarks:
+Implements only packb() for the subset used in ULMEN benchmarks:
 lists of dicts with str keys and str/int/float/bool/None values.
 
 Not a full msgpack implementation — benchmark use only.
-Conforms to MessagePack spec for the types used in LUMEN benchmarks.
+Conforms to MessagePack spec for the types used in ULMEN benchmarks.
 """
 
 from __future__ import annotations

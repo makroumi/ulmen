@@ -1,10 +1,10 @@
 """
-Unit tests for lumen/core/_msgpack_compat.py
+Unit tests for ulmen/core/_msgpack_compat.py
 Target: 100% coverage of the minimal pure-Python msgpack packer.
 """
 import struct
 
-from lumen.core._msgpack_compat import packb
+from ulmen.core._msgpack_compat import packb
 
 
 class TestPackbNone:
@@ -177,7 +177,7 @@ class TestPackbFallback:
 
 
 class TestPackbRealData:
-    def test_lumen_benchmark_records(self):
+    def test_ulmen_benchmark_records(self):
         records = [{"id": i, "name": f"u{i}", "score": 1.5} for i in range(100)]
         b = packb(records)
         assert isinstance(b, bytes)

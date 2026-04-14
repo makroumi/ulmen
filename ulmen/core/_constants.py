@@ -1,5 +1,5 @@
 """
-Wire-format constants for the LUMEN binary and text codecs.
+Wire-format constants for the ULMEN binary and text codecs.
 
 Type tags, strategy bytes, and format identifiers are defined here and
 imported by every other submodule. Nothing in this file has side-effects.

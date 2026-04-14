@@ -1,9 +1,9 @@
 # Constants Reference
 
-All constants are exported from the top-level `lumen` package.
+All constants are exported from the top-level `ulmen` package.
 
 ```python
-from lumen import MAGIC, VERSION, T_INT, S_DELTA
+from ulmen import MAGIC, VERSION, T_INT, S_DELTA
 ```
 
 ---
@@ -14,9 +14,9 @@ from lumen import MAGIC, VERSION, T_INT, S_DELTA
 |---|---|---|
 | 'MAGIC' | 'b"LUMB"' | 4-byte magic number at the start of every binary payload |
 | 'VERSION' | 'bytes([3, 3])' | Major and minor wire format version |
-| 'LUMEN_LLM_MAGIC' | '"L|"' | LUMIA payload prefix |
-| 'AGENT_MAGIC' | '"LUMEN-AGENT v1"' | LUMEN-AGENT payload first line |
-| 'AGENT_VERSION' | '"1.0.0"' | LUMEN-AGENT protocol version |
+| 'ULMEN_LLM_MAGIC' | '"L|"' | ULMEN payload prefix |
+| 'AGENT_MAGIC' | '"ULMEN-AGENT v1"' | ULMEN-AGENT payload first line |
+| 'AGENT_VERSION' | '"1.0.0"' | ULMEN-AGENT protocol version |
 
 ---
 
@@ -60,10 +60,10 @@ Written in the T_MATRIX column header, one byte per column.
 | Constant | Value |
 |---|---|
 | '__version__' | '1.0.0' |
-| '__edition__' | 'LUMEN V1' |
+| '__edition__' | 'ULMEN V1' |
 
 ```Python
-from lumen import RECORD_TYPES, FIELD_COUNTS
+from ulmen import RECORD_TYPES, FIELD_COUNTS
 
 print(RECORD_TYPES)
 # frozenset({"msg", "tool", "res", "plan", "obs", "err", "mem", "rag", "hyp", "cot"})
@@ -74,7 +74,7 @@ print(FIELD_COUNTS["tool"])  # 7
 
 ---
 
-## LUMEN-AGENT Constants
+## ULMEN-AGENT Constants
 
 ### Priority Values
 
@@ -108,7 +108,7 @@ including the four common fields (type, id, thread_id, step) but
 excluding any declared meta fields.
 
 ```python
-from lumen import FIELD_COUNTS
+from ulmen import FIELD_COUNTS
 
 FIELD_COUNTS["msg"]  # 9
 FIELD_COUNTS["tool"] # 7

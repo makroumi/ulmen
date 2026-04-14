@@ -1,4 +1,4 @@
-//! LUMEN V1 — Lightweight Universal Minimal Encoding Notation
+//! ULMEN V1 — Lightweight Universal Minimal Encoding Notation
 //! Rust acceleration layer (PyO3)
 //!
 //! Copyright (c) El Mehdi Makroumi. All rights reserved.
@@ -48,7 +48,7 @@ fn fx_map<K, V>(cap: usize) -> FxHashMap<K, V> {
 }
 
 // ---------------------------------------------------------------------------
-// Wire-format constants — byte-identical to lumen/core/_constants.py
+// Wire-format constants — byte-identical to ulmen/core/_constants.py
 // ---------------------------------------------------------------------------
 
 const T_STR_TINY: u8 = 0x01;
@@ -788,10 +788,10 @@ fn zlib_compress(d: &[u8], level: u32) -> Vec<u8> {
 }
 
 // ---------------------------------------------------------------------------
-// LumenCore — all precomputed encodings
+// UlmenCore — all precomputed encodings
 // ---------------------------------------------------------------------------
 
-struct LumenCore {
+struct UlmenCore {
     cd: Vec<Vec<ColVal>>,
     keys: Vec<u32>,
     st: StringTable,
@@ -817,7 +817,7 @@ struct LumenCore {
     zlib_level: u32,
 }
 
-impl LumenCore {
+impl UlmenCore {
     fn build(lst: &Bound<'_, PyList>, max_pool: usize, zlib_level: u32) -> PyResult<Self> {
         let nr = lst.len();
         if nr == 0 {
@@ -1131,13 +1131,13 @@ impl LumenCore {
 // ---------------------------------------------------------------------------
 
 #[pyclass]
-struct LumenDictRust {
-    core: LumenCore,
+struct UlmenDictRust {
+    core: UlmenCore,
     opt: bool,
 }
 
 #[pymethods]
-impl LumenDictRust {
+impl UlmenDictRust {
     #[new]
     #[pyo3(signature = (data=None, optimizations=false, pool_size_limit=64))]
     fn new(
@@ -1149,7 +1149,7 @@ impl LumenDictRust {
         let empty = PyList::empty_bound(py);
         let lst = data.unwrap_or(&empty);
         Ok(Self {
-            core: LumenCore::build(lst, pool_size_limit, 6)?,
+            core: UlmenCore::build(lst, pool_size_limit, 6)?,
             opt: optimizations,
         })
     }
@@ -1191,7 +1191,7 @@ impl LumenDictRust {
         PyBytes::new_bound(py, self.core.get_zlib())
     }
 
-    fn encode_lumen_llm(&self, py: Python<'_>) -> PyResult<String> {
+    fn encode_ulmen_llm(&self, py: Python<'_>) -> PyResult<String> {
         let list = PyList::empty_bound(py);
         for col_row in 0..self.core.n_rows {
             let d = PyDict::new_bound(py);
@@ -1209,7 +1209,7 @@ impl LumenDictRust {
             }
             list.append(d)?;
         }
-        encode_lumen_llm_rust(py, &list)
+        encode_ulmen_llm_rust(py, &list)
     }
 
     fn bench_encode_text_only(&self, iters: usize) -> usize {
@@ -1235,7 +1235,7 @@ impl LumenDictRust {
 
     fn __repr__(&self) -> String {
         format!(
-            "LumenDictRust(records={}, pool={}, optimizations={})",
+            "UlmenDictRust(records={}, pool={}, optimizations={})",
             self.core.n_rows,
             self.core.pool.len(),
             self.opt,
@@ -1244,13 +1244,13 @@ impl LumenDictRust {
 }
 
 #[pyclass]
-struct LumenDictFullRust {
-    core: LumenCore,
+struct UlmenDictFullRust {
+    core: UlmenCore,
     lim: usize,
 }
 
 #[pymethods]
-impl LumenDictFullRust {
+impl UlmenDictFullRust {
     #[new]
     #[pyo3(signature = (data=None, pool_size_limit=256))]
     fn new(
@@ -1261,7 +1261,7 @@ impl LumenDictFullRust {
         let empty = PyList::empty_bound(py);
         let lst = data.unwrap_or(&empty);
         Ok(Self {
-            core: LumenCore::build(lst, pool_size_limit, 6)?,
+            core: UlmenCore::build(lst, pool_size_limit, 6)?,
             lim: pool_size_limit,
         })
     }
@@ -1296,7 +1296,7 @@ impl LumenDictFullRust {
         PyBytes::new_bound(py, self.core.get_zlib())
     }
 
-    fn encode_lumen_llm(&self, py: Python<'_>) -> PyResult<String> {
+    fn encode_ulmen_llm(&self, py: Python<'_>) -> PyResult<String> {
         let list = PyList::empty_bound(py);
         for col_row in 0..self.core.n_rows {
             let d = PyDict::new_bound(py);
@@ -1314,7 +1314,7 @@ impl LumenDictFullRust {
             }
             list.append(d)?;
         }
-        encode_lumen_llm_rust(py, &list)
+        encode_ulmen_llm_rust(py, &list)
     }
 
     fn bench_encode_text_only(&self, iters: usize) -> usize {
@@ -1340,7 +1340,7 @@ impl LumenDictFullRust {
 
     fn __repr__(&self) -> String {
         format!(
-            "LumenDictFullRust(records={}, pool={}, pool_limit={})",
+            "UlmenDictFullRust(records={}, pool={}, pool_limit={})",
             self.core.n_rows,
             self.core.pool.len(),
             self.lim,
@@ -1349,11 +1349,11 @@ impl LumenDictFullRust {
 }
 
 // ---------------------------------------------------------------------------
-// LumenStreamEncoder — streaming binary encode, no full materialisation
+// UlmenStreamEncoder — streaming binary encode, no full materialisation
 // ---------------------------------------------------------------------------
 //
 // Usage (Python):
-//   enc = LumenStreamEncoder(pool_size_limit=64)
+//   enc = UlmenStreamEncoder(pool_size_limit=64)
 //   enc.feed_record({"id": 1, "name": "Alice"})
 //   enc.feed_record({"id": 2, "name": "Bob"})
 //   for chunk in enc.finish():
@@ -1375,7 +1375,7 @@ impl LumenDictFullRust {
 // and concatenates valid sub-payloads the decoder can handle sequentially.
 
 #[pyclass]
-struct LumenStreamEncoder {
+struct UlmenStreamEncoder {
     rows: Vec<Vec<ColVal>>, // rows[row_idx][col_idx]
     keys: Vec<u32>,
     st: StringTable,
@@ -1385,7 +1385,7 @@ struct LumenStreamEncoder {
 }
 
 #[pymethods]
-impl LumenStreamEncoder {
+impl UlmenStreamEncoder {
     #[new]
     #[pyo3(signature = (pool_size_limit=64, chunk_size=65536))]
     fn new(pool_size_limit: usize, chunk_size: usize) -> Self {
@@ -1508,7 +1508,7 @@ impl LumenStreamEncoder {
 
         // Assemble full payload into a staging buffer
         let pool_block = build_binary_pool_block(&pool, &self.st);
-        let payload = LumenCore::assemble_binary(
+        let payload = UlmenCore::assemble_binary(
             nr,
             nc,
             &self.keys,
@@ -1540,7 +1540,7 @@ impl LumenStreamEncoder {
 
     fn __repr__(&self) -> String {
         format!(
-            "LumenStreamEncoder(records_buffered={}, cols={}, pool_limit={})",
+            "UlmenStreamEncoder(records_buffered={}, cols={}, pool_limit={})",
             self.rows.len(),
             self.keys.len(),
             self.max_pool,
@@ -1554,7 +1554,7 @@ impl LumenStreamEncoder {
 //
 // For payloads too large to hold in RAM even as ColVal arrays.
 // Splits `records` into windows of `window_size` dicts, encodes each
-// window as a complete self-contained LUMEN binary payload, and returns
+// window as a complete self-contained ULMEN binary payload, and returns
 // the list. Each sub-payload can be decoded independently with
 // decode_binary_records_rust.
 
@@ -1582,7 +1582,7 @@ fn encode_binary_stream_chunked<'py>(
         for j in i..end {
             slice.append(data.get_item(j)?)?;
         }
-        let core = LumenCore::build(&slice, pool_size_limit, 6)?;
+        let core = UlmenCore::build(&slice, pool_size_limit, 6)?;
         result.push(PyBytes::new_bound(py, core.binary_strat_cached()));
         i = end;
     }
@@ -1970,7 +1970,7 @@ fn decode_binary_records_rust<'py>(py: Python<'py>, data: &[u8]) -> PyResult<Bou
 }
 
 // ---------------------------------------------------------------------------
-// LUMIA encoder / decoder (unchanged, correct and complete)
+// ULMEN encoder / decoder (unchanged, correct and complete)
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -2185,7 +2185,7 @@ fn llm_type_and_encode(v: &Bound<'_, PyAny>, out: &mut String) -> PyResult<LlmCo
 }
 
 #[pyfunction]
-fn encode_lumen_llm_rust(_py: Python<'_>, data: &Bound<'_, PyList>) -> PyResult<String> {
+fn encode_ulmen_llm_rust(_py: Python<'_>, data: &Bound<'_, PyList>) -> PyResult<String> {
     let nr = data.len();
     if nr == 0 {
         return Ok("L|".to_string());
@@ -2295,7 +2295,7 @@ fn encode_lumen_llm_rust(_py: Python<'_>, data: &Bound<'_, PyList>) -> PyResult<
 }
 
 // ---------------------------------------------------------------------------
-// LUMIA decoder helpers
+// ULMEN decoder helpers
 // ---------------------------------------------------------------------------
 
 #[inline(always)]
@@ -2569,10 +2569,10 @@ fn llm_split_rows_quoted(text: &str) -> Vec<&str> {
 }
 
 #[pyfunction]
-fn decode_lumen_llm_rust<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyList>> {
+fn decode_ulmen_llm_rust<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyList>> {
     if text.len() < 2 || !text.starts_with("L|") {
         return Err(pyo3::exceptions::PyValueError::new_err(
-            "Not a LUMEN LLM payload: must start with 'L|'",
+            "Not a ULMEN LLM payload: must start with 'L|'",
         ));
     }
 
@@ -2692,15 +2692,15 @@ fn decode_lumen_llm_rust<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py
 // ---------------------------------------------------------------------------
 
 #[pymodule]
-fn _lumen_rust(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<LumenDictRust>()?;
-    m.add_class::<LumenDictFullRust>()?;
-    m.add_class::<LumenStreamEncoder>()?;
+fn _ulmen_rust(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<UlmenDictRust>()?;
+    m.add_class::<UlmenDictFullRust>()?;
+    m.add_class::<UlmenStreamEncoder>()?;
     m.add("VERSION", "1.0.0")?;
-    m.add("EDITION", "LUMEN V1")?;
+    m.add("EDITION", "ULMEN V1")?;
     m.add_function(wrap_pyfunction!(decode_binary_records_rust, m)?)?;
-    m.add_function(wrap_pyfunction!(encode_lumen_llm_rust, m)?)?;
-    m.add_function(wrap_pyfunction!(decode_lumen_llm_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_ulmen_llm_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_ulmen_llm_rust, m)?)?;
     m.add_function(wrap_pyfunction!(encode_binary_stream_chunked, m)?)?;
     Ok(())
 }

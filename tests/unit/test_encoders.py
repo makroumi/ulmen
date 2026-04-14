@@ -8,7 +8,7 @@ import math
 
 import pytest
 
-from lumen.core import (
+from ulmen.core import (
     MAGIC,
     T_BITS,
     T_DELTA_RAW,
@@ -685,7 +685,7 @@ class TestBinaryEncodeValueMissing:
     """Cover _encode_value_binary list/tuple/dict/fallback branches."""
 
     def test_encode_list_value(self):
-        from lumen.core._binary import decode_binary_records, encode_binary_records
+        from ulmen.core._binary import decode_binary_records, encode_binary_records
         records = [[1, 2, 3]]
         pool, pool_map = [], {}
         enc = encode_binary_records(records, pool, pool_map)
@@ -693,7 +693,7 @@ class TestBinaryEncodeValueMissing:
         assert dec == [[1, 2, 3]]
 
     def test_encode_tuple_value(self):
-        from lumen.core._binary import decode_binary_records, encode_binary_records
+        from ulmen.core._binary import decode_binary_records, encode_binary_records
         records = [(1, 2)]
         pool, pool_map = [], {}
         enc = encode_binary_records(records, pool, pool_map)
@@ -701,7 +701,7 @@ class TestBinaryEncodeValueMissing:
         assert dec == [[1, 2]]
 
     def test_encode_nested_dict_value(self):
-        from lumen.core._binary import decode_binary_records, encode_binary_records
+        from ulmen.core._binary import decode_binary_records, encode_binary_records
         records = [{"meta": {"k": "v"}}]
         pool, pool_map = [], {}
         enc = encode_binary_records(records, pool, pool_map)
@@ -709,7 +709,7 @@ class TestBinaryEncodeValueMissing:
         assert dec[0]["meta"] == {"k": "v"}
 
     def test_encode_fallback_type(self):
-        from lumen.core._binary import _encode_value_binary
+        from ulmen.core._binary import _encode_value_binary
         # non-standard type falls back to pack_string(str(v))
         class Weird:
             def __str__(self): return "weird"

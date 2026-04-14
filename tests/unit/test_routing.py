@@ -1,8 +1,8 @@
 """
-Unit tests for lumen/core/_routing.py
+Unit tests for ulmen/core/_routing.py
 Target: 100% coverage of AgentRouter and validate_routing_consistency.
 """
-from lumen.core._routing import AgentRouter, validate_routing_consistency
+from ulmen.core._routing import AgentRouter, validate_routing_consistency
 
 
 class TestAgentRouterConstruction:

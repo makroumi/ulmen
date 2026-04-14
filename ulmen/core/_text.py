@@ -1,5 +1,5 @@
 """
-LUMEN text codec -- encoder and decoder for the line-oriented text format.
+ULMEN text codec -- encoder and decoder for the line-oriented text format.
 
 Text format summary:
 
@@ -28,7 +28,7 @@ Token vocabulary (text format):
 import math
 from typing import Any
 
-from lumen.core._strategies import detect_column_strategy
+from ulmen.core._strategies import detect_column_strategy
 
 
 def _text_escape(s: str) -> str:
@@ -109,7 +109,7 @@ def _encode_value_text(v: Any, pool_map: dict) -> str:
 
 def _encode_obj_iterative_text(obj: Any, pool_map: dict) -> str:
     """
-    Encode an arbitrary Python object to LUMEN text format.
+    Encode an arbitrary Python object to ULMEN text format.
 
     Supports nested dicts, lists, tuples, and all scalar types.
     Uses an explicit stack to avoid Python recursion limits on deeply
@@ -160,7 +160,7 @@ def encode_text_records(
     matrix_mode: bool = True,
 ) -> str:
     """
-    Encode a list of records to the LUMEN text format.
+    Encode a list of records to the ULMEN text format.
 
     Selection logic:
         empty records              -> empty string
@@ -266,7 +266,7 @@ def _encode_schema_text(records: list, pool_map: dict) -> list:
 
 def decode_text_records(text: str) -> list:
     """
-    Decode a LUMEN text payload back to a list of Python objects.
+    Decode a ULMEN text payload back to a list of Python objects.
 
     The row fill index is tracked with a plain counter instead of a
     linear scan so large datasets decode in O(n) rather than O(n^2).

@@ -1,12 +1,12 @@
 """
-LUMEN streaming encode surface.
+ULMEN streaming encode surface.
 
-LumenStreamEncoder wraps the Rust LumenStreamEncoder (or falls back to
+UlmenStreamEncoder wraps the Rust UlmenStreamEncoder (or falls back to
 pure Python) and provides an ergonomic iterator-based API so large
 datasets never need to be fully materialised before the first byte
 is emitted.
 
-    enc = LumenStreamEncoder(pool_size_limit=64, chunk_size=65536)
+    enc = UlmenStreamEncoder(pool_size_limit=64, chunk_size=65536)
     enc.feed(record)          # one dict
     enc.feed_many(records)    # iterable of dicts
     for chunk in enc.flush(): # yields bytes chunks
@@ -32,8 +32,8 @@ from typing import Iterable, Iterator
 
 _RUST_STREAM = False
 try:
-    from lumen._lumen_rust import LumenStreamEncoder as _RustStreamEncoder  # type: ignore
-    from lumen._lumen_rust import encode_binary_stream_chunked as _rust_chunked  # type: ignore
+    from ulmen._ulmen_rust import UlmenStreamEncoder as _RustStreamEncoder  # type: ignore
+    from ulmen._ulmen_rust import encode_binary_stream_chunked as _rust_chunked  # type: ignore
     _RUST_STREAM = True
 except ImportError:
     _RustStreamEncoder = None
@@ -69,8 +69,8 @@ class _PyStreamEncoder:
         return len(self._rows)
 
     def flush(self) -> Iterator[bytes]:
-        from lumen.core._binary import encode_binary_records
-        from lumen.core._strategies import build_pool
+        from ulmen.core._binary import encode_binary_records
+        from ulmen.core._strategies import build_pool
         rows = self._rows
         pool, pool_map = build_pool(rows, max_pool=self._pool_size_limit)
         payload = encode_binary_records(rows, pool, pool_map, use_strategies=True)
@@ -91,10 +91,10 @@ class _PyStreamEncoder:
 
 
 # ---------------------------------------------------------------------------
-# Public LumenStreamEncoder — selects Rust or Python automatically
+# Public UlmenStreamEncoder — selects Rust or Python automatically
 # ---------------------------------------------------------------------------
 
-class LumenStreamEncoder:
+class UlmenStreamEncoder:
     """
     Streaming binary encoder — zero full-payload materialisation on the
     caller side.
@@ -141,7 +141,7 @@ class LumenStreamEncoder:
             )
             self._rust = False
 
-    def feed(self, record: dict) -> LumenStreamEncoder:
+    def feed(self, record: dict) -> UlmenStreamEncoder:
         """Feed one record dict. Returns self for chaining."""
         if self._rust:
             self._inner.feed_record(record)
@@ -149,7 +149,7 @@ class LumenStreamEncoder:
             self._inner.feed(record)
         return self
 
-    def feed_many(self, records: Iterable[dict]) -> LumenStreamEncoder:
+    def feed_many(self, records: Iterable[dict]) -> UlmenStreamEncoder:
         """Feed an iterable of record dicts. Returns self for chaining."""
         if self._rust:
             lst = list(records)
@@ -191,7 +191,7 @@ class LumenStreamEncoder:
     def __repr__(self) -> str:
         backend = "rust" if self._rust else "python"
         return (
-            f"LumenStreamEncoder("
+            f"UlmenStreamEncoder("
             f"records_buffered={self.record_count()}, "
             f"pool_limit={self._pool_size_limit}, "
             f"chunk_size={self._chunk_size}, "
@@ -225,9 +225,9 @@ def stream_encode(
     Yields
     ------
     bytes chunks of at most chunk_size bytes each.
-    The concatenation of all chunks is a valid LUMEN binary payload.
+    The concatenation of all chunks is a valid ULMEN binary payload.
     """
-    enc = LumenStreamEncoder(
+    enc = UlmenStreamEncoder(
         pool_size_limit=pool_size_limit,
         chunk_size=chunk_size,
     )
@@ -248,7 +248,7 @@ def stream_encode_windowed(
     Encode an unbounded record stream as independent window sub-payloads.
 
     Each yielded bytes object is a complete, independently decodable
-    LUMEN binary payload covering window_size records. Use this when
+    ULMEN binary payload covering window_size records. Use this when
     even accumulating the full record list in RAM is unacceptable.
 
     Parameters
@@ -259,7 +259,7 @@ def stream_encode_windowed(
 
     Yields
     ------
-    Complete LUMEN binary payloads (bytes), one per window.
+    Complete ULMEN binary payloads (bytes), one per window.
 
     Decoding
     --------
@@ -280,8 +280,8 @@ def stream_encode_windowed(
         return
 
     # Python path: process window by window, never holding more than window_size rows
-    from lumen.core._binary import encode_binary_records
-    from lumen.core._strategies import build_pool
+    from ulmen.core._binary import encode_binary_records
+    from ulmen.core._strategies import build_pool
 
     buf: list = []
     for rec in records:
@@ -297,18 +297,18 @@ def stream_encode_windowed(
 
 
 # ---------------------------------------------------------------------------
-# LUMIA streaming encoder
+# ULMEN streaming encoder
 # ---------------------------------------------------------------------------
 
-def stream_encode_lumia(
+def stream_encode_ulmen(
     records:    Iterable[dict],
     chunk_size: int = 65536,
 ) -> Iterator[str]:
     """
-    Encode an iterable of records to LUMIA (L| format) and yield string chunks.
+    Encode an iterable of records to ULMEN (L| format) and yield string chunks.
 
     The first chunk always contains the complete header line. Subsequent
-    chunks contain data rows. This preserves LUMIA's self-describing property:
+    chunks contain data rows. This preserves ULMEN's self-describing property:
     a receiver that buffers the first chunk always has the schema.
 
     Parameters
@@ -318,13 +318,13 @@ def stream_encode_lumia(
 
     Yields
     ------
-    str chunks. Concatenation is a valid LUMIA payload.
+    str chunks. Concatenation is a valid ULMEN payload.
     """
-    from lumen.core._lumen_llm import encode_lumen_llm
-    # LUMIA requires two-pass (type inference needs all rows for header).
+    from ulmen.core._ulmen_llm import encode_ulmen_llm
+    # ULMEN requires two-pass (type inference needs all rows for header).
     # Buffer all records, encode, then slice by character count.
     lst     = list(records)
-    payload = encode_lumen_llm(lst)
+    payload = encode_ulmen_llm(lst)
     sz      = max(256, chunk_size)
     for i in range(0, max(1, len(payload)), sz):
         yield payload[i:i + sz]

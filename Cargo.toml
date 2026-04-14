@@ -1,12 +1,12 @@
 [package]
-name        = "lumen"
+name        = "ulmen"
 version     = "1.0.0"
 edition     = "2021"
-description = "LUMEN Rust acceleration layer (PyO3)"
+description = "ULMEN Rust acceleration layer (PyO3)"
 license     = "Apache-2.0"
 
 [lib]
-name       = "lumen_rust"
+name       = "ulmen_rust"
 crate-type = ["cdylib"]
 
 [dependencies]

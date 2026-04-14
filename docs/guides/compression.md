@@ -1,6 +1,6 @@
 # Compression Guide
 
-LUMEN provides multiple layers of compression. This guide explains each
+ULMEN provides multiple layers of compression. This guide explains each
 layer, when to use it, and how to tune it.
 
 ---
@@ -32,7 +32,7 @@ frequency x (byte_length - ref_cost) > 0
 `ref_cost` is 2 bytes for pools with 9 or fewer entries, 4 bytes otherwise.
 
 ```python
-from lumen import build_pool
+from ulmen import build_pool
 
 records  = [{"city": "London", "country": "UK"} for _ in range(1000)]
 pool, pm = build_pool(records, max_pool=64)
@@ -44,10 +44,10 @@ Pool size limits:
 
 | Class | Default limit | Configurable |
 |---|---|---|
-| LumenDict | 64 | No |
-| LumenDictFull | 256 | Yes, via pool_size_limit |
-| LumenDictRust | 64 | Yes, via pool_size_limit |
-| LumenDictFullRust | 256 | Yes, via pool_size_limit |
+| UlmenDict | 64 | No |
+| UlmenDictFull | 256 | Yes, via pool_size_limit |
+| UlmenDictRust | 64 | Yes, via pool_size_limit |
+| UlmenDictFullRust | 256 | Yes, via pool_size_limit |
 
 Larger pools save more bytes on highly repetitive string datasets but increase the pool header size and pool-build time.
 
@@ -61,7 +61,7 @@ Applied automatically when calling 'encode_binary_pooled()' or setting 'optimiza
 Stores booleans as a bitfield. 8x denser than one byte per bool.
 
 ```Python
-from lumen import compute_bits_savings
+from ulmen import compute_bits_savings
 
 compute_bits_savings([True, False, True, True, False])
 # {"raw": 10, "bits": 3, "saving": 7}
@@ -71,7 +71,7 @@ compute_bits_savings([True, False, True, True, False])
 Stores the first value then differences. Effective for monotonic IDs.
 
 ```python
-from lumen import compute_delta_savings
+from ulmen import compute_delta_savings
 
 compute_delta_savings([1000, 1001, 1002, 1003, 1004])
 # {"raw": 10, "delta": 6, "saving": 4, "pct": 40.0}
@@ -82,7 +82,7 @@ Stores runs as (value, count) pairs. Effective for low-cardinality columns
 or columns with long constant stretches.
 
 ```Python
-from lumen import compute_rle_savings
+from ulmen import compute_rle_savings
 
 compute_rle_savings(["active"] * 500 + ["inactive"] * 500)
 # {"raw": ..., "rle": ..., "saving": ...}
@@ -94,7 +94,7 @@ Threshold: unique count must be below `max(8, n / 10)`.
 
 #### Inspect strategy selection
 ```Python
-from lumen import detect_column_strategy
+from ulmen import detect_column_strategy
 
 detect_column_strategy([1, 2, 3, 4, 5])                      # "delta"
 detect_column_strategy([True, False, True])                   # "bits"
@@ -108,7 +108,7 @@ detect_column_strategy([None] * 100)                          # "rle"
 Applied on top of the already-compressed binary payload.
 
 ```Python
-ld = LumenDictRust(records)
+ld = UlmenDictRust(records)
 
 level6 = ld.encode_binary_zlib(level=6)   # balanced, recommended
 level9 = ld.encode_binary_zlib(level=9)   # smallest, higher CPU cost
@@ -124,12 +124,12 @@ Measured on 1,000 records:
 | Level 6 | 2,453 bytes | 7.5% |
 | Level 9 | 2,450 bytes | 7.5% |
 
-Level 9 provides negligible improvement over level 6 on LUMEN binary because the pool and strategies already remove most redundancy.
+Level 9 provides negligible improvement over level 6 on ULMEN binary because the pool and strategies already remove most redundancy.
 
 Decompress with standard Python zlib:
 ```Python
 import zlib
-from lumen import decode_binary_records
+from ulmen import decode_binary_records
 
 raw  = zlib.decompress(compressed)
 back = decode_binary_records(raw)
@@ -144,8 +144,8 @@ back = decode_binary_records(raw)
 | Maximum compatibility, no size concern | 'encode_binary()' |
 | Production data transfer | 'encode_binary_pooled()' |
 | Long-term storage, disk space critical | 'encode_binary_zlib(level=6)' |
-| Large repetitive dataset | 'LumenDictFull.encode_binary()' |
-| Fastest possible encode | 'LumenDictRust.encode_binary_pooled()' |
+| Large repetitive dataset | 'UlmenDictFull.encode_binary()' |
+| Fastest possible encode | 'UlmenDictRust.encode_binary_pooled()' |
 
 ---
 
@@ -157,7 +157,7 @@ Measured on 1,000 records, 10 mixed-type columns.
 | JSON | 145,664 | 100.0% |
 | Pickle protocol 4 | 62,177 | 42.7% |
 | CSV | 61,717 | 42.4% |
-| LUMEN text | 46,779 | 32.1% |
-| LUMEN binary | 32,701 | 22.4% |
-| LUMEN zlib-6 | 2,453 | 1.7% |
-| LUMEN zlib-9 | 2,450 | 1.7% |
+| ULMEN text | 46,779 | 32.1% |
+| ULMEN binary | 32,701 | 22.4% |
+| ULMEN zlib-6 | 2,453 | 1.7% |
+| ULMEN zlib-9 | 2,450 | 1.7% |

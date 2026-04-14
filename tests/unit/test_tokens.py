@@ -1,8 +1,8 @@
 """
-Unit tests for lumen/core/_tokens.py
+Unit tests for ulmen/core/_tokens.py
 Target: 100% coverage of count_tokens_exact and count_tokens_exact_records.
 """
-from lumen.core._tokens import (
+from ulmen.core._tokens import (
     _bpe_count_chunk,
     _split_chunks,
     count_tokens_exact,
@@ -126,7 +126,7 @@ class TestCountTokensExact:
         assert result >= 1
 
     def test_agent_payload(self):
-        text = "LUMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|user|1|hi|1|F\n"
+        text = "ULMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|user|1|hi|1|F\n"
         result = count_tokens_exact(text)
         assert result > 0
 
@@ -163,19 +163,19 @@ class TestCountTokensExactRecords:
         assert result == 0
 
     def test_basic_payload(self):
-        text = "LUMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|user|1|hi|1|F\n"
+        text = "ULMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|user|1|hi|1|F\n"
         result = count_tokens_exact_records(text)
         base = count_tokens_exact(text)
         assert result >= base
 
     def test_overhead_added(self):
-        text = "LUMEN-AGENT v1\nrecords: 2\nmsg|m1|t1|1|user|1|hi|1|F\nmsg|m2|t1|2|assistant|2|bye|1|F\n"
+        text = "ULMEN-AGENT v1\nrecords: 2\nmsg|m1|t1|1|user|1|hi|1|F\nmsg|m2|t1|2|assistant|2|bye|1|F\n"
         result   = count_tokens_exact_records(text, per_record_overhead=5)
         baseline = count_tokens_exact_records(text, per_record_overhead=0)
         assert result > baseline
 
     def test_zero_overhead(self):
-        text = "LUMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|user|1|hi|1|F\n"
+        text = "ULMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|user|1|hi|1|F\n"
         r0 = count_tokens_exact_records(text, per_record_overhead=0)
         r3 = count_tokens_exact_records(text, per_record_overhead=3)
         assert r3 >= r0
@@ -190,7 +190,7 @@ class TestCountTokensExactRecords:
 
     def test_many_rows(self):
         rows = "\n".join([f"msg|m{i}|t1|{i}|user|1|hi|1|F" for i in range(1, 51)])
-        text = f"LUMEN-AGENT v1\nrecords: 50\n{rows}\n"
+        text = f"ULMEN-AGENT v1\nrecords: 50\n{rows}\n"
         result = count_tokens_exact_records(text)
         assert result > count_tokens_exact(text)
 
@@ -200,7 +200,7 @@ class TestCountTokensExactLine72:
 
     def test_null_bytes_produce_no_chunks_fallback(self):
         text = "\x00\x01\x02\x03"
-        from lumen.core._tokens import _split_chunks
+        from ulmen.core._tokens import _split_chunks
         _split_chunks(text)
         result = count_tokens_exact(text)
         assert isinstance(result, int)
@@ -208,7 +208,7 @@ class TestCountTokensExactLine72:
 
     def test_private_use_area_chars_fallback(self):
         text = "\ue000\ue001\ue002\ue003\ue004\ue005\ue006\ue007"
-        from lumen.core._tokens import _split_chunks
+        from ulmen.core._tokens import _split_chunks
         _split_chunks(text)
         result = count_tokens_exact(text)
         assert isinstance(result, int)
@@ -237,7 +237,7 @@ class TestCountTokensExactFallbackLine72:
     def test_empty_chunks_triggers_fallback(self):
         from unittest.mock import patch
 
-        from lumen.core import _tokens as tok_mod
+        from ulmen.core import _tokens as tok_mod
         with patch.object(tok_mod, "_split_chunks", return_value=[]):
             result = tok_mod.count_tokens_exact("abcd")
         assert result == max(1, (4 + 3) // 4)
@@ -245,7 +245,7 @@ class TestCountTokensExactFallbackLine72:
     def test_empty_chunks_fallback_single_char(self):
         from unittest.mock import patch
 
-        from lumen.core import _tokens as tok_mod
+        from ulmen.core import _tokens as tok_mod
         with patch.object(tok_mod, "_split_chunks", return_value=[]):
             result = tok_mod.count_tokens_exact("x")
         assert result == 1
@@ -253,7 +253,7 @@ class TestCountTokensExactFallbackLine72:
     def test_empty_chunks_fallback_eight_chars(self):
         from unittest.mock import patch
 
-        from lumen.core import _tokens as tok_mod
+        from ulmen.core import _tokens as tok_mod
         with patch.object(tok_mod, "_split_chunks", return_value=[]):
             result = tok_mod.count_tokens_exact("x" * 8)
         assert result == max(1, (8 + 3) // 4)

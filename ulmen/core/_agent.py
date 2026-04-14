@@ -1,8 +1,8 @@
 """
-LUMEN-AGENT v1 encoder, decoder, validator, compressor, and streaming decoder.
+ULMEN-AGENT v1 encoder, decoder, validator, compressor, and streaming decoder.
 
 Wire format:
-    LUMEN-AGENT v1
+    ULMEN-AGENT v1
     [thread: <thread_id>]
     [context_window: <n>]
     [context_used: <n>]
@@ -30,13 +30,13 @@ from __future__ import annotations
 
 import math
 import uuid
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-AGENT_MAGIC   = "LUMEN-AGENT v1"
+AGENT_MAGIC   = "ULMEN-AGENT v1"
 AGENT_VERSION = "1.0.0"
 
 SEP = "|"
@@ -195,7 +195,7 @@ def migrate_schema(
 
 
 # Migration registry: (from_version, to_version) -> callable(records) -> records
-_MIGRATIONS: dict[tuple[str, str], object] = {}
+_MIGRATIONS: dict[tuple[str, str], Callable[[list[dict]], list[dict]]] = {}
 # Example: _MIGRATIONS[("1.0.0", "1.1.0")] = _migrate_1_0_to_1_1
 
 
@@ -304,7 +304,7 @@ class ContextBudgetExceededError(ValueError):
 
 class AgentHeader:
     """
-    Parsed representation of the LUMEN-AGENT payload header.
+    Parsed representation of the ULMEN-AGENT payload header.
 
     Attributes
     ----------
@@ -660,7 +660,7 @@ def encode_agent_payload(
     auto_payload_id: bool = False,
 ) -> str:
     """
-    Encode a list of agent record dicts to a complete LUMEN-AGENT v1 payload.
+    Encode a list of agent record dicts to a complete ULMEN-AGENT v1 payload.
 
     Parameters
     ----------
@@ -693,7 +693,7 @@ def encode_agent_payload(
         data_lines.append(encode_agent_record(rec, meta_fields=meta_fields))
 
     if auto_context and context_window is not None:
-        from lumen.core._utils import estimate_tokens
+        from ulmen.core._utils import estimate_tokens
         body = "\n".join(data_lines)
         h.context_used = estimate_tokens(body)
 
@@ -760,7 +760,7 @@ def decode_agent_payload_full(text: str) -> tuple[list[dict], AgentHeader]:
 
 def decode_agent_stream(lines: Iterator[str]) -> Iterator[dict]:
     """
-    Stream-decode a LUMEN-AGENT v1 payload one record at a time.
+    Stream-decode a ULMEN-AGENT v1 payload one record at a time.
     Header is buffered until records: line is found, then data rows stream.
     Unknown header lines are silently ignored (forward compatible).
     """
@@ -818,7 +818,7 @@ def validate_agent_payload(
     structured: bool = False,
 ) -> tuple[bool, str | ValidationError | None]:
     """
-    Validate a LUMEN-AGENT v1 payload.
+    Validate a ULMEN-AGENT v1 payload.
 
     Parameters
     ----------
@@ -974,10 +974,10 @@ def chunk_payload(
 
     Returns
     -------
-    List of payload strings. Each payload is a valid LUMEN-AGENT v1
+    List of payload strings. Each payload is a valid ULMEN-AGENT v1
     payload. Payloads are linked via payload_id / parent_payload_id.
     """
-    from lumen.core._utils import estimate_tokens
+    from ulmen.core._utils import estimate_tokens
 
     if not records:
         return [encode_agent_payload(
@@ -1089,7 +1089,7 @@ def chunk_payload(
 
 def merge_chunks(payloads: list[str]) -> list[dict]:
     """
-    Decode and merge a list of chunked LUMEN-AGENT payloads back into
+    Decode and merge a list of chunked ULMEN-AGENT payloads back into
     a single flat list of records.
 
     Payloads are merged in the order provided. Records from overlapping
@@ -1097,7 +1097,7 @@ def merge_chunks(payloads: list[str]) -> list[dict]:
 
     Parameters
     ----------
-    payloads : list of LUMEN-AGENT v1 payload strings
+    payloads : list of ULMEN-AGENT v1 payload strings
 
     Returns
     -------
@@ -1139,7 +1139,7 @@ def build_summary_chain(
         ...
         payload_N: most recent records verbatim (parent=payload_N-1)
 
-    Each payload in the chain is independently valid LUMEN-AGENT v1.
+    Each payload in the chain is independently valid ULMEN-AGENT v1.
 
     Parameters
     ----------
@@ -1155,7 +1155,7 @@ def build_summary_chain(
     Feed the LAST payload to the LLM — it contains the full context
     via parent_payload_id references to prior summaries.
     """
-    from lumen.core._utils import estimate_tokens
+    from ulmen.core._utils import estimate_tokens
 
     if not records:
         return []
@@ -1434,7 +1434,7 @@ def dedup_mem(records: list[dict]) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def estimate_context_usage(records: list[dict], meta_fields: tuple = ()) -> dict:
-    from lumen.core._utils import estimate_tokens
+    from ulmen.core._utils import estimate_tokens
 
     by_type: dict[str, int] = {}
     total_chars = 0
@@ -1463,7 +1463,7 @@ def generate_system_prompt(
     include_validation: bool = True,
 ) -> str:
     """
-    Generate the LUMEN-AGENT v1 system prompt programmatically from
+    Generate the ULMEN-AGENT v1 system prompt programmatically from
     the live schema. Always reflects the current record types and fields.
 
     Parameters
@@ -1476,9 +1476,9 @@ def generate_system_prompt(
     Complete system prompt string ready to inject into LLM system message.
     """
     lines = [
-        "You communicate using LUMEN-AGENT v1, a strict typed pipe-delimited format.",
+        "You communicate using ULMEN-AGENT v1, a strict typed pipe-delimited format.",
         "Every response you produce (except the final answer to the user) must be",
-        "valid LUMEN-AGENT v1. Never produce free-form JSON, XML, or prose for",
+        "valid ULMEN-AGENT v1. Never produce free-form JSON, XML, or prose for",
         "internal reasoning or tool calls.",
         "",
         "PAYLOAD STRUCTURE",
@@ -1585,35 +1585,35 @@ def generate_system_prompt(
 
 
 # ---------------------------------------------------------------------------
-# LUMIA <-> LUMEN-AGENT bridge
+# ULMEN <-> ULMEN-AGENT bridge
 # ---------------------------------------------------------------------------
 
-def convert_agent_to_lumia(payload: str) -> str:
+def convert_agent_to_ulmen(payload: str) -> str:
     """
-    Convert a LUMEN-AGENT v1 payload to LUMIA format for LLM consumption.
-    The LUMIA output contains all records as typed rows for easy LLM reading.
+    Convert a ULMEN-AGENT v1 payload to ULMEN format for LLM consumption.
+    The ULMEN output contains all records as typed rows for easy LLM reading.
     """
-    from lumen.core._lumen_llm import encode_lumen_llm
+    from ulmen.core._ulmen_llm import encode_ulmen_llm
     records, _ = decode_agent_payload_full(payload)
-    return encode_lumen_llm(records)
+    return encode_ulmen_llm(records)
 
 
-def convert_lumia_to_agent(
-    lumia: str,
+def convert_ulmen_to_agent(
+    ulmen: str,
     thread_id: str = "t1",
 ) -> str:
     """
-    Convert a LUMIA payload to LUMEN-AGENT v1 format.
-    Records must contain a 'type' field matching a valid LUMEN-AGENT record type.
+    Convert a ULMEN payload to ULMEN-AGENT v1 format.
+    Records must contain a 'type' field matching a valid ULMEN-AGENT record type.
     Records missing required agent fields are skipped with a warning.
 
     Parameters
     ----------
-    lumia     : LUMIA payload string
+    ulmen     : ULMEN payload string
     thread_id : thread_id to assign if records don't have one
     """
-    from lumen.core._lumen_llm import decode_lumen_llm
-    records = decode_lumen_llm(lumia)
+    from ulmen.core._ulmen_llm import decode_ulmen_llm
+    records = decode_ulmen_llm(ulmen)
     agent_records = []
     step = 1
     for rec in records:

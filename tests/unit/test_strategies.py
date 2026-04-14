@@ -5,7 +5,7 @@ Unit tests for column strategy detection and savings computation:
   - build_pool
 """
 
-from lumen.core import (
+from ulmen.core import (
     build_pool,
     compute_bits_savings,
     compute_delta_savings,

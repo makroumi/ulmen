@@ -1,6 +1,6 @@
 # Wire Format
 
-Complete specification of the LUMEN binary and text wire formats.
+Complete specification of the ULMEN binary and text wire formats.
 
 ---
 
@@ -236,7 +236,7 @@ This avoids repeating the column value on every row line.
 
 ---
 
-## LUMIA Format
+## ULMEN Format
 
 ### Layout
 ```text

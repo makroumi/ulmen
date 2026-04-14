@@ -1,4 +1,4 @@
-# LUMEN-AGENT v1 Specification
+# ULMEN-AGENT v1 Specification
 
 Version: 1.0.0
 Status: Stable
@@ -8,14 +8,14 @@ Status: Stable
 ## 1. Payload Structure
 
 ```text
-LUMEN-AGENT v1
+ULMEN-AGENT v1
 records: N
 <row>
 <row>
 ...
 ```
 
-Line 1: exactly the string `LUMEN-AGENT v1`. No trailing whitespace.
+Line 1: exactly the string `ULMEN-AGENT v1`. No trailing whitespace.
 Line 2: exactly `records: N` where N is a non-negative integer.
 Lines 3 to N+2: data rows, one per line.
 
@@ -229,7 +229,7 @@ Validation is strict and all-or-nothing. One invalid row rejects the entire payl
 
 ### Payload level
 
-1. Line 1 must be exactly `LUMEN-AGENT v1`
+1. Line 1 must be exactly `ULMEN-AGENT v1`
 2. Line 2 must match `records: N` where N is a non-negative integer
 3. Actual row count must equal N
 4. No blank lines
@@ -255,7 +255,7 @@ Validation is strict and all-or-nothing. One invalid row rejects the entire payl
 
 Emit one `err` record describing the failure:
 ```text
-LUMEN-AGENT v1
+ULMEN-AGENT v1
 records: 1
 err|er_val_001|INVALID|1|VALIDATION_FAILED|<description>|validator|F
 ```
@@ -265,10 +265,10 @@ err|er_val_001|INVALID|1|VALIDATION_FAILED|<description>|validator|F
 ## 7. Subgraph Extraction
 
 Filter a payload by thread, step range, or record type.
-All filters combine with AND. Result is a valid LUMEN-AGENT v1 payload.
+All filters combine with AND. Result is a valid ULMEN-AGENT v1 payload.
 
 ```python
-from lumen import extract_subgraph, extract_subgraph_payload
+from ulmen import extract_subgraph, extract_subgraph_payload
 
 # From decoded records
 filtered = extract_subgraph(
@@ -292,7 +292,7 @@ filtered_payload = extract_subgraph_payload(
 ## 8. Full Examples
 
 ```text
-LUMEN-AGENT v1
+ULMEN-AGENT v1
 records: 10
 msg|msg_001|th_42|1|user|1|What is the population density of Paris?|9|F
 plan|pl_001|th_42|2|1|Search for Paris population|done

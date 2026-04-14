@@ -1,6 +1,6 @@
-# LUMEN-AGENT Overview
+# ULMEN-AGENT Overview
 
-LUMEN-AGENT v1 is a structured wire format for agentic AI systems.
+ULMEN-AGENT v1 is a structured wire format for agentic AI systems.
 It replaces free-form JSON and prose with a strict, typed, pipe-delimited protocol that is both token-efficient and zero-hallucination by design.
 
 ---
@@ -14,7 +14,7 @@ JSON has three problems for agentic workloads:
 2. Untyped. The model must infer types from context or schema definitions.
 3. Hallucination-prone. Free-form structure gives models too much latitude.
 
-LUMEN-AGENT fixes all three: typed rows, fixed schemas per record type, and strict validation that rejects any malformed payload atomically.
+ULMEN-AGENT fixes all three: typed rows, fixed schemas per record type, and strict validation that rejects any malformed payload atomically.
 
 ---
 
@@ -60,7 +60,7 @@ existing parsers.
 ## Quick Example
 
 ```python
-from lumen import encode_agent_payload, decode_agent_payload, validate_agent_payload
+from ulmen import encode_agent_payload, decode_agent_payload, validate_agent_payload
 
 records = [
     {
@@ -94,7 +94,7 @@ ok, err = validate_agent_payload(payload)
 
 Output:
 ```text
-LUMEN-AGENT v1
+ULMEN-AGENT v1
 records: 4
 msg|m1|t1|1|user|1|What is the capital of France?|7|F
 tool|tc1|t1|2|web_search|{"query":"capital of France"}|pending
@@ -115,7 +115,7 @@ print(decoded[2]["status"]) # "done"
 Payloads can carry optional metadata in the header:
 
 ```python
-from lumen import encode_agent_payload, decode_agent_payload_full
+from ulmen import encode_agent_payload, decode_agent_payload_full
 
 payload = encode_agent_payload(
     records,
@@ -142,7 +142,7 @@ print(header.schema_version)
 
 Wire output:
 ```text
-LUMEN-AGENT v1
+ULMEN-AGENT v1
 thread: t1
 context_window: 8000
 context_used: 42
@@ -196,7 +196,7 @@ if not ok:
 ## Context Budget Enforcement
 
 ```python
-from lumen import ContextBudgetExceededError
+from ulmen import ContextBudgetExceededError
 
 try:
     payload = encode_agent_payload(
@@ -217,8 +217,8 @@ except ContextBudgetExceededError as e:
 When a conversation grows long, compress it before encoding:
 
 ```python
-from lumen import compress_context
-from lumen.core._agent import (
+from ulmen import compress_context
+from ulmen.core._agent import (
     COMPRESS_COMPLETED_SEQUENCES,
     COMPRESS_KEEP_TYPES,
     COMPRESS_SLIDING_WINDOW,
@@ -257,7 +257,7 @@ Records with priority = 'PRIORITY_MUST_KEEP' are never removed by any strategy
 ## Memory Deduplication
 
 ```python
-from lumen import dedup_mem, get_latest_mem
+from ulmen import dedup_mem, get_latest_mem
 
 # Keep only the most recent mem record per (thread_id, key)
 clean = dedup_mem(records)
@@ -273,7 +273,7 @@ if latest:
 # Context Usage Estimation
 
 ```python
-from lumen import chunk_payload, merge_chunks, build_summary_chain
+from ulmen import chunk_payload, merge_chunks, build_summary_chain
 
 # Split into chunks, each fitting within token_budget
 chunks = chunk_payload(
@@ -309,7 +309,7 @@ chain = build_summary_chain(
 When an LLM produces a malformed payload:
 
 ```python
-from lumen import parse_llm_output
+from ulmen import parse_llm_output
 
 # Non-strict: returns error payload if repair fails
 repaired = parse_llm_output(raw_llm_text)
@@ -334,7 +334,7 @@ Repairs applied automatically in order:
 ## Exact Token Counting
 
 ```python
-from lumen import count_tokens_exact, count_tokens_exact_records
+from ulmen import count_tokens_exact, count_tokens_exact_records
 
 n = count_tokens_exact(payload)
 n = count_tokens_exact_records(records)
@@ -347,7 +347,7 @@ Falls back to character estimate when tiktoken is unavailable.
 ## Streaming Decode
 
 ```python
-from lumen import decode_agent_stream
+from ulmen import decode_agent_stream
 
 with open("payload.txt") as f:
     for rec in decode_agent_stream(f):
@@ -363,7 +363,7 @@ are ignored.
 Filter a payload by thread, step range, or record type:
 
 ```python
-from lumen import extract_subgraph, extract_subgraph_payload
+from ulmen import extract_subgraph, extract_subgraph_payload
 
 # From decoded records
 filtered = extract_subgraph(
@@ -387,7 +387,7 @@ filtered_payload = extract_subgraph_payload(
 ## Multi-Agent Routing
 
 ```python
-from lumen import AgentRouter, validate_routing_consistency
+from ulmen import AgentRouter, validate_routing_consistency
 
 router = AgentRouter()
 router.register("planner", "executor", handle_task)
@@ -404,7 +404,7 @@ ok, err = validate_routing_consistency(records)
 ## Cross-Payloadd Thread Tracking
 
 ```python
-from lumen import ThreadRegistry, merge_threads
+from ulmen import ThreadRegistry, merge_threads
 
 registry = ThreadRegistry()
 registry.add_payload("pid-1", records_from_payload_1)
@@ -420,7 +420,7 @@ merged = merge_threads([records_1, records_2, records_3])
 ## Audit Trail
 
 ```python
-from lumen import ReplayLog
+from ulmen import ReplayLog
 
 log = ReplayLog()
 log.append({"event": "encode", "payload_id": "pid-1", "ts": 1234567890})
@@ -434,7 +434,7 @@ for event in log.all():
 
 ## System Prompt Generation
 ```python
-from lumen import generate_system_prompt
+from ulmen import generate_system_prompt
 
 prompt = generate_system_prompt(
     include_examples=True,
@@ -446,16 +446,16 @@ current record types, field names, enum values, and encoding rules.
 
 ---
 
-## LUMIA Bridge
+## ULMEN Bridge
 
 ```python
-from lumen import convert_agent_to_lumia, convert_lumia_to_agent
+from ulmen import convert_agent_to_ulmen, convert_ulmen_to_agent
 
-# LUMEN-AGENT to LUMIA
-lumia = convert_agent_to_lumia(agent_payload)
+# ULMEN-AGENT to ULMEN
+ulmen = convert_agent_to_ulmen(agent_payload)
 
-# LUMIA to LUMEN-AGENT
-payload = convert_lumia_to_agent(lumia, thread_id="t1")
+# ULMEN to ULMEN-AGENT
+payload = convert_ulmen_to_agent(ulmen, thread_id="t1")
 ```
 
 ---
@@ -463,7 +463,7 @@ payload = convert_lumia_to_agent(lumia, thread_id="t1")
 ## MessagePack Compatibility
 
 ```python
-from lumen.core._msgpack_compat import encode_msgpack, decode_msgpack
+from ulmen.core._msgpack_compat import encode_msgpack, decode_msgpack
 
 packed   = encode_msgpack(records)
 unpacked = decode_msgpack(packed)

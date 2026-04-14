@@ -1,5 +1,5 @@
 """
-LUMEN V1 — Official benchmark suite.
+ULMEN V1 — Official benchmark suite.
 
 Measures real encode/decode throughput and size ratios vs JSON, CSV,
 pickle, and TOML on the canonical 1,000-record mixed-type dataset.
@@ -15,15 +15,15 @@ import pickle
 import time
 from typing import Callable
 
-from lumen import (
-    RUST_AVAILABLE,
-    LumenDictRust,
-    decode_binary_records,
-    decode_lumen_llm,
-    encode_lumen_llm,
-)
-from lumen.core import LumenDict, LumenDictFull
 from tests.conftest import make_record
+from ulmen import (
+    RUST_AVAILABLE,
+    UlmenDictRust,
+    decode_binary_records,
+    decode_ulmen_llm,
+    encode_ulmen_llm,
+)
+from ulmen.core import UlmenDict, UlmenDictFull
 
 # ---------------------------------------------------------------------------
 # Dataset
@@ -75,7 +75,7 @@ class TestSizeMeasurements:
     """
     Measure exact byte sizes for all formats and surfaces.
     Results printed to stdout with -s flag.
-    All assertions verify LUMEN is smaller than JSON.
+    All assertions verify ULMEN is smaller than JSON.
     """
 
     def test_size_report(self, capsys):
@@ -86,9 +86,9 @@ class TestSizeMeasurements:
         pickle_bytes = len(_pickle_encode(recs))
         csv_bytes    = len(_csv_encode(recs))
 
-        # LUMEN sizes
-        ld = LumenDict(recs)
-        ldf = LumenDictFull(recs)
+        # ULMEN sizes
+        ld = UlmenDict(recs)
+        ldf = UlmenDictFull(recs)
 
         py_text_bytes   = len(ld.encode_text().encode())
         py_bin_bytes    = len(ld.encode_binary_pooled())
@@ -96,22 +96,22 @@ class TestSizeMeasurements:
         py_zlib9_bytes  = len(ld.encode_binary_zlib(9))
         full_bin_bytes  = len(ldf.encode_binary())
 
-        lumia_bytes     = len(encode_lumen_llm(recs).encode())
+        ulmen_bytes     = len(encode_ulmen_llm(recs).encode())
 
         if RUST_AVAILABLE:
-            rs = LumenDictRust(recs)
+            rs = UlmenDictRust(recs)
             rs_text_bytes  = len(rs.encode_text().encode())
             rs_bin_bytes   = len(rs.encode_binary_pooled())
             rs_zlib_bytes  = len(rs.encode_binary_zlib(6))
-            rs_lumia_bytes = len(rs.encode_lumen_llm().encode())
+            rs_ulmen_bytes = len(rs.encode_ulmen_llm().encode())
         else:
-            rs_text_bytes = rs_bin_bytes = rs_zlib_bytes = rs_lumia_bytes = 0
+            rs_text_bytes = rs_bin_bytes = rs_zlib_bytes = rs_ulmen_bytes = 0
 
         def pct(x):
             return f"{100 * x / json_bytes:.1f}%"
 
         print("\n" + "=" * 60)
-        print("LUMEN V1 — Size Benchmark (n=1,000 records)")
+        print("ULMEN V1 — Size Benchmark (n=1,000 records)")
         print("=" * 60)
         print(f"{'Format':<28} {'Bytes':>10} {'vs JSON':>10}")
         print("-" * 60)
@@ -119,18 +119,18 @@ class TestSizeMeasurements:
         print(f"{'Pickle (protocol 4)':.<28} {pickle_bytes:>10,} {pct(pickle_bytes):>10}")
         print(f"{'CSV':.<28} {csv_bytes:>10,} {pct(csv_bytes):>10}")
         print("-" * 60)
-        print(f"{'LUMEN text (Python)':.<28} {py_text_bytes:>10,} {pct(py_text_bytes):>10}")
-        print(f"{'LUMEN binary (Python)':.<28} {py_bin_bytes:>10,} {pct(py_bin_bytes):>10}")
-        print(f"{'LUMEN binary full pool':.<28} {full_bin_bytes:>10,} {pct(full_bin_bytes):>10}")
-        print(f"{'LUMEN zlib-6 (Python)':.<28} {py_zlib_bytes:>10,} {pct(py_zlib_bytes):>10}")
-        print(f"{'LUMEN zlib-9 (Python)':.<28} {py_zlib9_bytes:>10,} {pct(py_zlib9_bytes):>10}")
-        print(f"{'LUMIA text (Python)':.<28} {lumia_bytes:>10,} {pct(lumia_bytes):>10}")
+        print(f"{'ULMEN text (Python)':.<28} {py_text_bytes:>10,} {pct(py_text_bytes):>10}")
+        print(f"{'ULMEN binary (Python)':.<28} {py_bin_bytes:>10,} {pct(py_bin_bytes):>10}")
+        print(f"{'ULMEN binary full pool':.<28} {full_bin_bytes:>10,} {pct(full_bin_bytes):>10}")
+        print(f"{'ULMEN zlib-6 (Python)':.<28} {py_zlib_bytes:>10,} {pct(py_zlib_bytes):>10}")
+        print(f"{'ULMEN zlib-9 (Python)':.<28} {py_zlib9_bytes:>10,} {pct(py_zlib9_bytes):>10}")
+        print(f"{'ULMEN text (Python)':.<28} {ulmen_bytes:>10,} {pct(ulmen_bytes):>10}")
         if RUST_AVAILABLE:
             print("-" * 60)
-            print(f"{'LUMEN text (Rust)':.<28} {rs_text_bytes:>10,} {pct(rs_text_bytes):>10}")
-            print(f"{'LUMEN binary (Rust)':.<28} {rs_bin_bytes:>10,} {pct(rs_bin_bytes):>10}")
-            print(f"{'LUMEN zlib-6 (Rust)':.<28} {rs_zlib_bytes:>10,} {pct(rs_zlib_bytes):>10}")
-            print(f"{'LUMIA text (Rust)':.<28} {rs_lumia_bytes:>10,} {pct(rs_lumia_bytes):>10}")
+            print(f"{'ULMEN text (Rust)':.<28} {rs_text_bytes:>10,} {pct(rs_text_bytes):>10}")
+            print(f"{'ULMEN binary (Rust)':.<28} {rs_bin_bytes:>10,} {pct(rs_bin_bytes):>10}")
+            print(f"{'ULMEN zlib-6 (Rust)':.<28} {rs_zlib_bytes:>10,} {pct(rs_zlib_bytes):>10}")
+            print(f"{'ULMEN text (Rust)':.<28} {rs_ulmen_bytes:>10,} {pct(rs_ulmen_bytes):>10}")
         print("=" * 60)
 
         # Store results for README generation
@@ -143,18 +143,18 @@ class TestSizeMeasurements:
             'py_zlib6':     py_zlib_bytes,
             'py_zlib9':     py_zlib9_bytes,
             'full_bin':     full_bin_bytes,
-            'lumia':        lumia_bytes,
+            'ulmen':        ulmen_bytes,
             'rs_text':      rs_text_bytes,
             'rs_bin':       rs_bin_bytes,
             'rs_zlib6':     rs_zlib_bytes,
-            'rs_lumia':     rs_lumia_bytes,
+            'rs_ulmen':     rs_ulmen_bytes,
         }
 
         # Assertions
         assert py_text_bytes  < json_bytes
         assert py_bin_bytes   < json_bytes
         assert py_zlib_bytes  < json_bytes
-        assert lumia_bytes    < json_bytes
+        assert ulmen_bytes    < json_bytes
         if RUST_AVAILABLE:
             assert rs_bin_bytes  < json_bytes
             assert rs_zlib_bytes < json_bytes
@@ -167,7 +167,7 @@ class TestSizeMeasurements:
 class TestSpeedMeasurements:
     """
     Measure median encode/decode latency over 50 iterations.
-    All LUMEN timings include construction (pool build + encode).
+    All ULMEN timings include construction (pool build + encode).
     """
 
     def test_speed_report(self, capsys):
@@ -176,54 +176,54 @@ class TestSpeedMeasurements:
         # Pre-encode for decode benchmarks
         json_enc    = _json_encode(recs)
         pickle_enc  = _pickle_encode(recs)
-        ld_bin      = LumenDict(recs).encode_binary_pooled()
-        lumia_enc   = encode_lumen_llm(recs)
+        ld_bin      = UlmenDict(recs).encode_binary_pooled()
+        ulmen_enc   = encode_ulmen_llm(recs)
 
         # Encode timings
         t_json_enc   = _timeit(lambda: _json_encode(recs))
         t_pickle_enc = _timeit(lambda: _pickle_encode(recs))
-        t_py_text    = _timeit(lambda: LumenDict(recs).encode_text())
-        t_py_bin     = _timeit(lambda: LumenDict(recs).encode_binary_pooled())
-        t_py_zlib    = _timeit(lambda: LumenDict(recs).encode_binary_zlib(6))
-        t_lumia_enc  = _timeit(lambda: encode_lumen_llm(recs))
+        t_py_text    = _timeit(lambda: UlmenDict(recs).encode_text())
+        t_py_bin     = _timeit(lambda: UlmenDict(recs).encode_binary_pooled())
+        t_py_zlib    = _timeit(lambda: UlmenDict(recs).encode_binary_zlib(6))
+        t_ulmen_enc  = _timeit(lambda: encode_ulmen_llm(recs))
 
         # Decode timings
         t_json_dec   = _timeit(lambda: _json_decode(json_enc))
         t_pickle_dec = _timeit(lambda: _pickle_decode(pickle_enc))
         t_py_bin_dec = _timeit(lambda: decode_binary_records(ld_bin))
-        t_lumia_dec  = _timeit(lambda: decode_lumen_llm(lumia_enc))
+        t_ulmen_dec  = _timeit(lambda: decode_ulmen_llm(ulmen_enc))
 
         if RUST_AVAILABLE:
-            rs_bin     = LumenDictRust(recs).encode_binary_pooled()
-            rs_lumia   = LumenDictRust(recs).encode_lumen_llm()
-            t_rs_text  = _timeit(lambda: LumenDictRust(recs).encode_text())
-            t_rs_bin   = _timeit(lambda: LumenDictRust(recs).encode_binary_pooled())
-            t_rs_zlib  = _timeit(lambda: LumenDictRust(recs).encode_binary_zlib(6))
-            t_rs_lumia = _timeit(lambda: LumenDictRust(recs).encode_lumen_llm())
+            rs_bin     = UlmenDictRust(recs).encode_binary_pooled()
+            rs_ulmen   = UlmenDictRust(recs).encode_ulmen_llm()
+            t_rs_text  = _timeit(lambda: UlmenDictRust(recs).encode_text())
+            t_rs_bin   = _timeit(lambda: UlmenDictRust(recs).encode_binary_pooled())
+            t_rs_zlib  = _timeit(lambda: UlmenDictRust(recs).encode_binary_zlib(6))
+            t_rs_ulmen = _timeit(lambda: UlmenDictRust(recs).encode_ulmen_llm())
             t_rs_bin_dec   = _timeit(lambda: decode_binary_records(rs_bin))
-            t_rs_lumia_dec = _timeit(lambda: decode_lumen_llm(rs_lumia))
+            t_rs_ulmen_dec = _timeit(lambda: decode_ulmen_llm(rs_ulmen))
         else:
-            t_rs_text = t_rs_bin = t_rs_zlib = t_rs_lumia = 0.0
-            t_rs_bin_dec = t_rs_lumia_dec = 0.0
+            t_rs_text = t_rs_bin = t_rs_zlib = t_rs_ulmen = 0.0
+            t_rs_bin_dec = t_rs_ulmen_dec = 0.0
 
         print("\n" + "=" * 60)
-        print("LUMEN V1 — Speed Benchmark (n=1,000 records, median 50 runs)")
+        print("ULMEN V1 — Speed Benchmark (n=1,000 records, median 50 runs)")
         print("=" * 60)
         print(f"{'Format':<32} {'Encode ms':>12} {'Decode ms':>12}")
         print("-" * 60)
         print(f"{'JSON':.<32} {t_json_enc:>11.3f}  {t_json_dec:>11.3f}")
         print(f"{'Pickle (protocol 4)':.<32} {t_pickle_enc:>11.3f}  {t_pickle_dec:>11.3f}")
         print("-" * 60)
-        print(f"{'LUMEN text (Python)':.<32} {t_py_text:>11.3f}  {'—':>11}")
-        print(f"{'LUMEN binary (Python)':.<32} {t_py_bin:>11.3f}  {t_py_bin_dec:>11.3f}")
-        print(f"{'LUMEN zlib-6 (Python)':.<32} {t_py_zlib:>11.3f}  {'—':>11}")
-        print(f"{'LUMIA (Python)':.<32} {t_lumia_enc:>11.3f}  {t_lumia_dec:>11.3f}")
+        print(f"{'ULMEN text (Python)':.<32} {t_py_text:>11.3f}  {'—':>11}")
+        print(f"{'ULMEN binary (Python)':.<32} {t_py_bin:>11.3f}  {t_py_bin_dec:>11.3f}")
+        print(f"{'ULMEN zlib-6 (Python)':.<32} {t_py_zlib:>11.3f}  {'—':>11}")
+        print(f"{'ULMEN (Python)':.<32} {t_ulmen_enc:>11.3f}  {t_ulmen_dec:>11.3f}")
         if RUST_AVAILABLE:
             print("-" * 60)
-            print(f"{'LUMEN text (Rust)':.<32} {t_rs_text:>11.3f}  {'—':>11}")
-            print(f"{'LUMEN binary (Rust)':.<32} {t_rs_bin:>11.3f}  {t_rs_bin_dec:>11.3f}")
-            print(f"{'LUMEN zlib-6 (Rust)':.<32} {t_rs_zlib:>11.3f}  {'—':>11}")
-            print(f"{'LUMIA (Rust)':.<32} {t_rs_lumia:>11.3f}  {t_rs_lumia_dec:>11.3f}")
+            print(f"{'ULMEN text (Rust)':.<32} {t_rs_text:>11.3f}  {'—':>11}")
+            print(f"{'ULMEN binary (Rust)':.<32} {t_rs_bin:>11.3f}  {t_rs_bin_dec:>11.3f}")
+            print(f"{'ULMEN zlib-6 (Rust)':.<32} {t_rs_zlib:>11.3f}  {'—':>11}")
+            print(f"{'ULMEN (Rust)':.<32} {t_rs_ulmen:>11.3f}  {t_rs_ulmen_dec:>11.3f}")
             print("-" * 60)
             if t_py_bin > 0 and t_rs_bin > 0:
                 speedup_bin  = t_py_bin  / t_rs_bin
@@ -236,11 +236,11 @@ class TestSpeedMeasurements:
         TestSpeedMeasurements._results = {
             't_json_enc': t_json_enc, 't_json_dec': t_json_dec,
             't_py_text': t_py_text, 't_py_bin': t_py_bin,
-            't_py_zlib': t_py_zlib, 't_lumia_enc': t_lumia_enc,
-            't_lumia_dec': t_lumia_dec, 't_py_bin_dec': t_py_bin_dec,
+            't_py_zlib': t_py_zlib, 't_ulmen_enc': t_ulmen_enc,
+            't_ulmen_dec': t_ulmen_dec, 't_py_bin_dec': t_py_bin_dec,
             't_rs_text': t_rs_text, 't_rs_bin': t_rs_bin,
-            't_rs_zlib': t_rs_zlib, 't_rs_lumia': t_rs_lumia,
-            't_rs_bin_dec': t_rs_bin_dec, 't_rs_lumia_dec': t_rs_lumia_dec,
+            't_rs_zlib': t_rs_zlib, 't_rs_ulmen': t_rs_ulmen,
+            't_rs_bin_dec': t_rs_bin_dec, 't_rs_ulmen_dec': t_rs_ulmen_dec,
         }
 
         # Sanity assertions — not speed guarantees, just smoke checks
@@ -257,13 +257,13 @@ class TestSpeedMeasurements:
 class TestStreamingMeasurements:
     """
     Measure streaming encode/decode throughput.
-    LumenStreamEncoder and stream_encode_windowed at 1k and 10k records.
+    UlmenStreamEncoder and stream_encode_windowed at 1k and 10k records.
     """
 
     def test_streaming_report(self, capsys):
-        from lumen._lumen_rust import decode_binary_records_rust
+        from ulmen._ulmen_rust import decode_binary_records_rust
 
-        from lumen.core._streaming import stream_encode, stream_encode_windowed
+        from ulmen.core._streaming import stream_encode, stream_encode_windowed
 
         recs_1k  = [make_record(i) for i in range(1_000)]
         recs_10k = [make_record(i) for i in range(10_000)]
@@ -289,7 +289,7 @@ class TestStreamingMeasurements:
         mb_s_10k = (len(payload_10k) / 1e6) / (t_stream_10k / 1000)
 
         print("\n" + "=" * 66)
-        print("LUMEN V1 — Streaming Benchmark")
+        print("ULMEN V1 — Streaming Benchmark")
         print("=" * 66)
         print(f"{'Surface':<36} {'Enc ms':>8} {'Dec ms':>8} {'MB/s':>8}")
         print("-" * 66)

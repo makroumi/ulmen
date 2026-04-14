@@ -1,12 +1,12 @@
 """
-Unit tests for lumen/core/_replay.py
+Unit tests for ulmen/core/_replay.py
 Target: 100% coverage of ReplayLog.
 """
 import os
 import tempfile
 
-from lumen.core._agent import encode_agent_payload
-from lumen.core._replay import ReplayLog
+from ulmen.core._agent import encode_agent_payload
+from ulmen.core._replay import ReplayLog
 
 
 def _msg(mid, tid, step):
@@ -241,8 +241,8 @@ class TestReplayLogLoadSkipBlankLines:
         import tempfile
         import time
 
-        from lumen.core._agent import encode_agent_payload
-        from lumen.core._replay import ReplayLog
+        from ulmen.core._agent import encode_agent_payload
+        from ulmen.core._replay import ReplayLog
 
         rec = {
             "type": "msg", "id": "m1", "thread_id": "t1", "step": 1,

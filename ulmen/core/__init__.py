@@ -1,8 +1,8 @@
 """
-lumen.core -- LUMEN v3.3.1 codec package.
+ulmen.core -- ULMEN v3.3.1 codec package.
 
 Re-exports all public symbols from the submodules so that the rest of
-the codebase can import from either lumen.core or lumen.core.<submodule>.
+the codebase can import from either ulmen.core or ulmen.core.<submodule>.
 
 Submodule responsibilities:
     _constants   wire-format tags, strategy bytes, MAGIC, VERSION
@@ -11,18 +11,18 @@ Submodule responsibilities:
     _strategies  detect_column_strategy, compute_*, build_pool
     _text        text encoder, text decoder, text helpers
     _binary      binary encoder, binary decoder
-    _api         LumenDict, LumenDictFull
+    _api         UlmenDict, UlmenDictFull
 """
 
-from lumen.core._api import (
-    LumenDict,
-    LumenDictFull,
+from ulmen.core._api import (
+    UlmenDict,
+    UlmenDictFull,
 )
-from lumen.core._binary import (
+from ulmen.core._binary import (
     decode_binary_records,
     encode_binary_records,
 )
-from lumen.core._constants import (
+from ulmen.core._constants import (
     MAGIC,
     S_BITS,
     S_DELTA,
@@ -46,7 +46,7 @@ from lumen.core._constants import (
     T_STRATEGY,
     VERSION,
 )
-from lumen.core._primitives import (
+from ulmen.core._primitives import (
     decode_varint,
     decode_zigzag,
     encode_varint,
@@ -63,14 +63,14 @@ from lumen.core._primitives import (
     unpack_bits,
     unpack_delta_raw,
 )
-from lumen.core._strategies import (
+from ulmen.core._strategies import (
     build_pool,
     compute_bits_savings,
     compute_delta_savings,
     compute_rle_savings,
     detect_column_strategy,
 )
-from lumen.core._text import (
+from ulmen.core._text import (
     _encode_obj_iterative_text,
     _encode_value_text,
     _format_float,
@@ -80,7 +80,7 @@ from lumen.core._text import (
     decode_text_records,
     encode_text_records,
 )
-from lumen.core._utils import (
+from ulmen.core._utils import (
     __edition__,
     __version__,
     deep_eq,
@@ -129,24 +129,24 @@ __all__ = [
     # binary codec
     "encode_binary_records", "decode_binary_records",
     # API
-    "LumenDict",
-    "LumenDictFull",
+    "UlmenDict",
+    "UlmenDictFull",
 ]
 
-from lumen.core._lumen_llm import (
-    LUMEN_LLM_MAGIC,
-    decode_lumen_llm,
-    encode_lumen_llm,
+from ulmen.core._ulmen_llm import (
+    ULMEN_LLM_MAGIC,
+    decode_ulmen_llm,
+    encode_ulmen_llm,
 )
 
 __all__ += [
-    "encode_lumen_llm",
-    "decode_lumen_llm",
-    "LUMEN_LLM_MAGIC",
+    "encode_ulmen_llm",
+    "decode_ulmen_llm",
+    "ULMEN_LLM_MAGIC",
 ]
 
-# Re-export LUMIA so lumen.core imports also work
-from lumen.core._agent import (
+# Re-export ULMEN so ulmen.core imports also work
+from ulmen.core._agent import (
     AGENT_MAGIC,
     AGENT_VERSION,
     COMPRESS_COMPLETED_SEQUENCES,
@@ -164,8 +164,8 @@ from lumen.core._agent import (
     build_summary_chain,
     chunk_payload,
     compress_context,
-    convert_agent_to_lumia,
-    convert_lumia_to_agent,
+    convert_agent_to_ulmen,
+    convert_ulmen_to_agent,
     decode_agent_payload,
     decode_agent_payload_full,
     decode_agent_record,
@@ -182,7 +182,7 @@ from lumen.core._agent import (
     merge_chunks,
     validate_agent_payload,
 )
-from lumen.core._lumen_llm import LUMEN_LLM_MAGIC, decode_lumen_llm, encode_lumen_llm  # noqa: F811
+from ulmen.core._ulmen_llm import ULMEN_LLM_MAGIC, decode_ulmen_llm, encode_ulmen_llm  # noqa: F811
 
 __all__ += [
     "AGENT_MAGIC",
@@ -202,8 +202,8 @@ __all__ += [
     "build_summary_chain",
     "chunk_payload",
     "compress_context",
-    "convert_agent_to_lumia",
-    "convert_lumia_to_agent",
+    "convert_agent_to_ulmen",
+    "convert_ulmen_to_agent",
     "decode_agent_payload",
     "decode_agent_payload_full",
     "decode_agent_record",
@@ -225,21 +225,21 @@ __all__ += [
 # New capability modules — zero dependencies
 # ---------------------------------------------------------------------------
 
-from lumen.core._repair import (
+from ulmen.core._repair import (
     parse_llm_output,
 )
-from lumen.core._replay import (
+from ulmen.core._replay import (
     ReplayLog,
 )
-from lumen.core._routing import (
+from ulmen.core._routing import (
     AgentRouter,
     validate_routing_consistency,
 )
-from lumen.core._threading import (
+from ulmen.core._threading import (
     ThreadRegistry,
     merge_threads,
 )
-from lumen.core._tokens import (
+from ulmen.core._tokens import (
     count_tokens_exact,
     count_tokens_exact_records,
 )
@@ -259,16 +259,16 @@ __all__ += [
 # ---------------------------------------------------------------------------
 # Streaming encode surface
 # ---------------------------------------------------------------------------
-from lumen.core._streaming import (
-    LumenStreamEncoder,
+from ulmen.core._streaming import (
+    UlmenStreamEncoder,
     stream_encode,
-    stream_encode_lumia,
+    stream_encode_ulmen,
     stream_encode_windowed,
 )
 
 __all__ += [
-    "LumenStreamEncoder",
+    "UlmenStreamEncoder",
     "stream_encode",
     "stream_encode_windowed",
-    "stream_encode_lumia",
+    "stream_encode_ulmen",
 ]

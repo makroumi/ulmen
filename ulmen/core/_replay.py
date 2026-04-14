@@ -1,5 +1,5 @@
 """
-LUMEN-AGENT append-only replay log.
+ULMEN-AGENT append-only replay log.
 
 ReplayLog provides an immutable audit trail of agent payloads. Once
 a payload is appended it cannot be modified or removed. The log can
@@ -14,7 +14,7 @@ from typing import Iterator
 
 class ReplayLog:
     """
-    Append-only audit trail for LUMEN-AGENT payloads.
+    Append-only audit trail for ULMEN-AGENT payloads.
 
     Each entry records the payload string, a monotonically increasing
     sequence number, a wall-clock timestamp, and optional metadata.
@@ -52,7 +52,7 @@ class ReplayLog:
 
         Parameters
         ----------
-        payload : LUMEN-AGENT v1 payload string
+        payload : ULMEN-AGENT v1 payload string
         meta    : optional dict of metadata (e.g. source agent, timestamp)
 
         Returns
@@ -94,7 +94,7 @@ class ReplayLog:
         Yield (entry, records) pairs for every log entry.
         Records are decoded from each payload on demand.
         """
-        from lumen.core._agent import decode_agent_payload_full
+        from ulmen.core._agent import decode_agent_payload_full
         for entry in self._entries:
             try:
                 records, _ = decode_agent_payload_full(entry["payload"])
@@ -130,7 +130,7 @@ class ReplayLog:
         Decode and merge all records across all log entries.
         Deduplicated by (id, thread_id, step).
         """
-        from lumen.core._agent import decode_agent_payload_full
+        from ulmen.core._agent import decode_agent_payload_full
         seen:   set[tuple]  = set()
         result: list[dict]  = []
         for entry in self._entries:

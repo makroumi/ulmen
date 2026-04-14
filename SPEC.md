@@ -1,7 +1,7 @@
-# LUMEN V1 - Wire Format Specification
+# ULMEN V1 - Wire Format Specification
 ## Table of Contents
 
-- [LUMEN V1 - Wire Format Specification](#lumen-v1---wire-format-specification)
+- [ULMEN V1 - Wire Format Specification](#ulmen-v1---wire-format-specification)
 - [1. Overview](#1-overview)
 - [2. Type System](#2-type-system)
 - [3. Binary Format](#3-binary-format)
@@ -23,12 +23,12 @@
   - [4.2 Multi-Record Layout (Matrix)](#42-multi-record-layout-matrix)
   - [4.3 Single-Record Layout](#43-single-record-layout)
   - [4.4 Non-Dict Records](#44-non-dict-records)
-- [5. LUMIA - LLM-Native Format](#5-lumia---llm-native-format)
+- [5. ULMEN - LLM-Native Format](#5-ulmen---llm-native-format)
   - [5.1 Layout](#51-layout)
   - [5.2 Type Hints](#52-type-hints)
   - [5.3 Value Encoding](#53-value-encoding)
   - [5.4 Quoting](#54-quoting)
-- [6. LUMEN-AGENT Protocol](#6-lumen-agent-protocol)
+- [6. ULMEN-AGENT Protocol](#6-ulmen-agent-protocol)
   - [6.1 Layout](#61-layout)
   - [6.2 Record Types](#62-record-types)
   - [6.3 Field Encoding](#63-field-encoding)
@@ -47,14 +47,14 @@ Format version: 3.3 (MAGIC + VERSION bytes)
 
 ## 1. Overview
 
-LUMEN defines three surfaces over a single data model:
+ULMEN defines three surfaces over a single data model:
 
 | Surface       | Prefix     | Use case                              |
 |---------------|------------|---------------------------------------|
 | Binary        | `LUMB`     | Storage, IPC, network transport       |
 | Text          | `records[` | Human-readable, diff-friendly         |
-| LUMIA         | `L|`       | LLM-native, token-efficient CSV       |
-| LUMEN-AGENT   | `LUMEN-AGENT v1` | Structured agentic protocol    |
+| ULMEN         | `L|`       | LLM-native, token-efficient CSV       |
+| ULMEN-AGENT   | `ULMEN-AGENT v1` | Structured agentic protocol    |
 
 All surfaces share the same type system and round-trip losslessly.
 
@@ -158,7 +158,7 @@ frequency × (len(string) − ref_cost) > 0
 
 where `ref_cost = 2` for pools ≤ 9 entries, `4` otherwise.
 
-Pool size is capped at 64 (LumenDict) or up to 256 (LumenDictFull).
+Pool size is capped at 64 (UlmenDict) or up to 256 (UlmenDictFull).
 
 ### 3.7 T_MATRIX - Columnar Record Set
 
@@ -273,9 +273,9 @@ lists use `[v,v,v]`.
 
 ---
 
-## 5. LUMIA - LLM-Native Format
+## 5. ULMEN - LLM-Native Format
 
-LUMIA is a header-prefixed CSV designed for zero-hallucination
+ULMEN is a header-prefixed CSV designed for zero-hallucination
 generation and parsing by language models.
 
 ### 5.1 Layout
@@ -325,7 +325,7 @@ wrapped in double quotes. Internal double quotes are doubled (`""`).
 
 ---
 
-## 6. LUMEN-AGENT Protocol
+## 6. ULMEN-AGENT Protocol
 
 Structured protocol for agentic AI communication.
 
@@ -345,7 +345,7 @@ type|id|thread_id|step|field...|[meta_fields...]
 ```
 
 
-Line 1 is exactly `LUMEN-AGENT v1`. Optional header lines follow in any
+Line 1 is exactly `ULMEN-AGENT v1`. Optional header lines follow in any
 order. The `records: N` line must appear before any data rows. N must
 equal the exact number of data rows that follow.
 
@@ -461,7 +461,7 @@ Validation is strict and all-or-nothing. One invalid row rejects the
 entire payload.
 
 Payload level:
-1. Line 1 must be exactly `LUMEN-AGENT v1`
+1. Line 1 must be exactly `ULMEN-AGENT v1`
 2. `records: N` must appear before data rows
 3. Actual row count must equal N
 4. No blank lines in the data section
@@ -523,7 +523,7 @@ references to prior summaries.
 formatting errors and returns a valid payload. Repair passes:
 
 1. Strip leading/trailing whitespace and markdown code fences
-2. Locate the `LUMEN-AGENT v1` magic line, discard everything before it
+2. Locate the `ULMEN-AGENT v1` magic line, discard everything before it
 3. Separate header lines from data lines
 4. Fix the `records: N` count to match actual data lines
 5. Reassemble and validate; return if valid
@@ -564,7 +564,7 @@ The iterator stops after exactly N records.
 `step_max`, and/or `types`. All filters combine with AND.
 
 `extract_subgraph_payload` applies the same filters to a raw payload
-string and returns a valid LUMEN-AGENT v1 payload.
+string and returns a valid ULMEN-AGENT v1 payload.
 
 ### 6.16 Memory Operations
 
@@ -592,13 +592,13 @@ boundaries. `add_payload` registers all records from a payload.
 `merge_threads` takes a list of record lists (one per payload) and
 returns a unified dict of thread_id to merged record list.
 
-### 6.19 LUMIA Bridge
+### 6.19 ULMEN Bridge
 
-`convert_agent_to_lumia` decodes a LUMEN-AGENT payload and re-encodes
-all records as LUMIA format for LLM consumption.
+`convert_agent_to_ulmen` decodes a ULMEN-AGENT payload and re-encodes
+all records as ULMEN format for LLM consumption.
 
-`convert_lumia_to_agent` decodes a LUMIA payload and re-encodes records
-as LUMEN-AGENT format, assigning `thread_id`, `id`, and `step` to any
+`convert_ulmen_to_agent` decodes a ULMEN payload and re-encodes records
+as ULMEN-AGENT format, assigning `thread_id`, `id`, and `step` to any
 record that is missing them. Records with types not in `RECORD_TYPES`
 are skipped.
 
@@ -619,17 +619,17 @@ On a 1,000-record realistic dataset (10 mixed-type columns):
 |---|---|
 | JSON | 1.00x (baseline) |
 | CSV | ~0.85x |
-| LUMEN text | ~0.55x |
-| LUMEN binary | ~0.30x |
-| LUMEN zlib | ~0.12x |
-| LUMIA | ~0.45x tokens vs JSON |
-| LUMEN-AGENT | ~0.38x tokens vs JSON |
+| ULMEN text | ~0.55x |
+| ULMEN binary | ~0.30x |
+| ULMEN zlib | ~0.12x |
+| ULMEN | ~0.45x tokens vs JSON |
+| ULMEN-AGENT | ~0.38x tokens vs JSON |
 
 ---
 
 ## 8. Implementation Notes
 
-The Python reference implementation in `lumen/core/` is the normative
+The Python reference implementation in `ulmen/core/` is the normative
 specification. The Rust layer in `src/lib.rs` is byte-identical for all
 outputs.
 

@@ -1,11 +1,11 @@
 """
-Tests for lumen.core._lumen_llm — 100% coverage target.
+Tests for ulmen.core._ulmen_llm — 100% coverage target.
 """
 import math
 
 import pytest
 
-from lumen.core._lumen_llm import (
+from ulmen.core._ulmen_llm import (
     _build_decoders,
     _dec_b,
     _dec_d,
@@ -34,8 +34,8 @@ from lumen.core._lumen_llm import (
     _split_simple,
     _split_top_level,
     _type_char,
-    decode_lumen_llm,
-    encode_lumen_llm,
+    decode_ulmen_llm,
+    encode_ulmen_llm,
 )
 
 # ---------------------------------------------------------------------------
@@ -236,209 +236,209 @@ class TestTypeChar:
 
 
 # ---------------------------------------------------------------------------
-# encode_lumen_llm
+# encode_ulmen_llm
 # ---------------------------------------------------------------------------
 
-class TestEncodeLumenLlm:
+class TestEncodeUlmenLlm:
     def test_empty(self):
-        assert encode_lumen_llm([]) == "L|"
+        assert encode_ulmen_llm([]) == "L|"
 
     def test_non_dict(self):
-        result = encode_lumen_llm([1, 2, 3])
+        result = encode_ulmen_llm([1, 2, 3])
         assert result.startswith("L|")
         assert "1" in result
 
     def test_single_dict(self):
-        result = encode_lumen_llm([{"a": 1, "b": "hello"}])
+        result = encode_ulmen_llm([{"a": 1, "b": "hello"}])
         assert result.startswith("L|")
         assert "a:d" in result
         assert "b:s" in result
 
     def test_multi_dict(self):
         records = [{"id": i, "name": f"User_{i}"} for i in range(5)]
-        result = encode_lumen_llm(records)
+        result = encode_ulmen_llm(records)
         lines = result.split("\n")
         assert lines[0].startswith("L|")
         assert len(lines) == 6  # header + 5 rows
 
     def test_empty_dict_records(self):
-        result = encode_lumen_llm([{}, {}])
+        result = encode_ulmen_llm([{}, {}])
         assert "L|{}" in result
 
     def test_type_inference_bool(self):
-        result = encode_lumen_llm([{"active": True}])
+        result = encode_ulmen_llm([{"active": True}])
         assert "active:b" in result
 
     def test_type_inference_int(self):
-        result = encode_lumen_llm([{"id": 1}])
+        result = encode_ulmen_llm([{"id": 1}])
         assert "id:d" in result
 
     def test_type_inference_float(self):
-        result = encode_lumen_llm([{"score": 1.5}])
+        result = encode_ulmen_llm([{"score": 1.5}])
         assert "score:f" in result
 
     def test_type_inference_null(self):
-        result = encode_lumen_llm([{"x": None}])
+        result = encode_ulmen_llm([{"x": None}])
         assert "x:n" in result
 
     def test_type_demotion_to_mixed(self):
-        result = encode_lumen_llm([{"x": 1}, {"x": "hello"}])
+        result = encode_ulmen_llm([{"x": 1}, {"x": "hello"}])
         assert "x:m" in result
 
     def test_nested_dict_value(self):
-        result = encode_lumen_llm([{"meta": {"k": "v"}}])
+        result = encode_ulmen_llm([{"meta": {"k": "v"}}])
         assert "{k:v}" in result
 
     def test_nested_list_value(self):
-        result = encode_lumen_llm([{"tags": [1, 2, 3]}])
+        result = encode_ulmen_llm([{"tags": [1, 2, 3]}])
         assert "[1|2|3]" in result
 
     def test_nan_value(self):
-        result = encode_lumen_llm([{"x": float("nan")}])
+        result = encode_ulmen_llm([{"x": float("nan")}])
         assert "nan" in result
 
     def test_inf_value(self):
-        result = encode_lumen_llm([{"x": float("inf")}])
+        result = encode_ulmen_llm([{"x": float("inf")}])
         assert "inf" in result
 
     def test_empty_string_value(self):
-        result = encode_lumen_llm([{"x": ""}])
+        result = encode_ulmen_llm([{"x": ""}])
         assert "$0=" in result
 
     def test_keys_with_special_chars(self):
-        result = encode_lumen_llm([{"a,b": 1}])
+        result = encode_ulmen_llm([{"a,b": 1}])
         assert '"a,b"' in result
 
     def test_missing_key_in_later_row(self):
         records = [{"a": 1, "b": 2}, {"a": 3}]
-        result = encode_lumen_llm(records)
+        result = encode_ulmen_llm(records)
         lines = result.split("\n")
         assert len(lines) == 3
 
 
 # ---------------------------------------------------------------------------
-# decode_lumen_llm
+# decode_ulmen_llm
 # ---------------------------------------------------------------------------
 
-class TestDecodeLumenLlm:
+class TestDecodeUlmenLlm:
     def test_empty(self):
-        assert decode_lumen_llm("L|") == []
+        assert decode_ulmen_llm("L|") == []
 
     def test_bad_magic(self):
-        with pytest.raises(ValueError, match="Not a LUMEN LLM payload"):
-            decode_lumen_llm("garbage")
+        with pytest.raises(ValueError, match="Not a ULMEN LLM payload"):
+            decode_ulmen_llm("garbage")
 
     def test_empty_dict_payload(self):
-        result = decode_lumen_llm("L|{}\n{}\n{}")
+        result = decode_ulmen_llm("L|{}\n{}\n{}")
         assert result == [{}, {}]
 
     def test_single_record(self):
-        result = decode_lumen_llm("L|id:d,name:s\n1,Alice")
+        result = decode_ulmen_llm("L|id:d,name:s\n1,Alice")
         assert result == [{"id": 1, "name": "Alice"}]
 
     def test_multi_record(self):
-        result = decode_lumen_llm("L|id:d,name:s\n1,Alice\n2,Bob")
+        result = decode_ulmen_llm("L|id:d,name:s\n1,Alice\n2,Bob")
         assert len(result) == 2
         assert result[0]["id"] == 1
         assert result[1]["name"] == "Bob"
 
     def test_null_value(self):
-        result = decode_lumen_llm("L|x:d\nN")
+        result = decode_ulmen_llm("L|x:d\nN")
         assert result[0]["x"] is None
 
     def test_bool_true(self):
-        result = decode_lumen_llm("L|active:b\nT")
+        result = decode_ulmen_llm("L|active:b\nT")
         assert result[0]["active"] is True
 
     def test_bool_false(self):
-        result = decode_lumen_llm("L|active:b\nF")
+        result = decode_ulmen_llm("L|active:b\nF")
         assert result[0]["active"] is False
 
     def test_float_value(self):
-        result = decode_lumen_llm("L|score:f\n3.14")
+        result = decode_ulmen_llm("L|score:f\n3.14")
         assert abs(result[0]["score"] - 3.14) < 1e-9
 
     def test_float_nan(self):
-        result = decode_lumen_llm("L|score:f\nnan")
+        result = decode_ulmen_llm("L|score:f\nnan")
         assert math.isnan(result[0]["score"])
 
     def test_float_inf(self):
-        result = decode_lumen_llm("L|score:f\ninf")
+        result = decode_ulmen_llm("L|score:f\ninf")
         assert result[0]["score"] == float("inf")
 
     def test_float_neg_inf(self):
-        result = decode_lumen_llm("L|score:f\n-inf")
+        result = decode_ulmen_llm("L|score:f\n-inf")
         assert result[0]["score"] == float("-inf")
 
     def test_null_type_col(self):
-        result = decode_lumen_llm("L|x:n\nN")
+        result = decode_ulmen_llm("L|x:n\nN")
         assert result[0]["x"] is None
 
     def test_mixed_type_col(self):
-        result = decode_lumen_llm("L|x:m\n42")
+        result = decode_ulmen_llm("L|x:m\n42")
         assert result[0]["x"] == 42
 
     def test_missing_col_in_row(self):
-        result = decode_lumen_llm("L|a:d,b:s\n1")
+        result = decode_ulmen_llm("L|a:d,b:s\n1")
         assert result[0]["a"] == 1
         assert result[0]["b"] is None
 
     def test_empty_string_value(self):
-        result = decode_lumen_llm("L|name:s\n$0=")
+        result = decode_ulmen_llm("L|name:s\n$0=")
         assert result[0]["name"] == ""
 
     def test_quoted_value(self):
-        result = decode_lumen_llm('L|name:s\n"Alice,Bob"')
+        result = decode_ulmen_llm('L|name:s\n"Alice,Bob"')
         assert result[0]["name"] == "Alice,Bob"
 
     def test_nested_dict_value(self):
-        result = decode_lumen_llm("L|meta:m\n{k:v}")
+        result = decode_ulmen_llm("L|meta:m\n{k:v}")
         assert result[0]["meta"] == {"k": "v"}
 
     def test_nested_list_value(self):
-        result = decode_lumen_llm("L|tags:m\n[1|2|3]")
+        result = decode_ulmen_llm("L|tags:m\n[1|2|3]")
         assert result[0]["tags"] == [1, 2, 3]
 
     def test_round_trip_simple(self):
         records = [{"id": i, "name": f"User_{i}", "active": i % 2 == 0}
                    for i in range(10)]
-        encoded = encode_lumen_llm(records)
-        decoded = decode_lumen_llm(encoded)
+        encoded = encode_ulmen_llm(records)
+        decoded = decode_ulmen_llm(encoded)
         assert len(decoded) == 10
         assert decoded[0]["id"] == 0
         assert decoded[5]["active"] is False
 
     def test_round_trip_float(self):
         records = [{"score": 98.5}]
-        encoded = encode_lumen_llm(records)
-        decoded = decode_lumen_llm(encoded)
+        encoded = encode_ulmen_llm(records)
+        decoded = decode_ulmen_llm(encoded)
         assert abs(decoded[0]["score"] - 98.5) < 1e-9
 
     def test_round_trip_null(self):
         records = [{"x": None}]
-        encoded = encode_lumen_llm(records)
-        decoded = decode_lumen_llm(encoded)
+        encoded = encode_ulmen_llm(records)
+        decoded = decode_ulmen_llm(encoded)
         assert decoded[0]["x"] is None
 
     def test_round_trip_empty_string(self):
         records = [{"name": ""}]
-        encoded = encode_lumen_llm(records)
-        decoded = decode_lumen_llm(encoded)
+        encoded = encode_ulmen_llm(records)
+        decoded = decode_ulmen_llm(encoded)
         assert decoded[0]["name"] == ""
 
     def test_round_trip_nested(self):
         records = [{"meta": {"k": "v"}, "tags": [1, 2]}]
-        encoded = encode_lumen_llm(records)
-        decoded = decode_lumen_llm(encoded)
+        encoded = encode_ulmen_llm(records)
+        decoded = decode_ulmen_llm(encoded)
         assert decoded[0]["meta"] == {"k": "v"}
         assert decoded[0]["tags"] == [1, 2]
 
     def test_non_dict_scalar(self):
-        result = decode_lumen_llm("L|\n42")
+        result = decode_ulmen_llm("L|\n42")
         assert result == [42]
 
     def test_spec_no_type_hint(self):
-        result = decode_lumen_llm("L|name\nAlice")
+        result = decode_ulmen_llm("L|name\nAlice")
         assert result[0]["name"] == "Alice"
 
 
@@ -622,66 +622,66 @@ class TestHelpers:
 
 
 class TestMissingCoverage:
-    """Cover remaining uncovered branches in _lumen_llm.py."""
+    """Cover remaining uncovered branches in _ulmen_llm.py."""
 
     def test_mixed_col_type_branch(self):
         # covers line 199: ct == 'm' fast path after type is locked as mixed
         records = [{"x": 1}, {"x": "hello"}, {"x": 2.0}]
-        result = encode_lumen_llm(records)
-        decoded = decode_lumen_llm(result)
+        result = encode_ulmen_llm(records)
+        decoded = decode_ulmen_llm(result)
         assert len(decoded) == 3
 
     def test_slow_path_plain_row(self):
         # covers llm316: slow path but row is plain
         # needs_slow=True (header has quotes) but data rows are plain
-        result = encode_lumen_llm([{"name": "Alice,Bob", "id": 1}])
-        decoded = decode_lumen_llm(result)
+        result = encode_ulmen_llm([{"name": "Alice,Bob", "id": 1}])
+        decoded = decode_ulmen_llm(result)
         assert decoded[0]["name"] == "Alice,Bob"
         assert decoded[0]["id"] == 1
 
     def test_slow_path_quoted_row(self):
         # covers slow path with quoted data row
         records = [{"name": "Alice,Bob", "desc": "hello,world"}]
-        result = encode_lumen_llm(records)
-        decoded = decode_lumen_llm(result)
+        result = encode_ulmen_llm(records)
+        decoded = decode_ulmen_llm(result)
         assert decoded[0]["name"] == "Alice,Bob"
         assert decoded[0]["desc"] == "hello,world"
 
     def test_split_rows_quoted_double_quote(self):
         # covers llm357: double-quote escape in _split_rows_quoted
-        from lumen.core._lumen_llm import _split_rows_quoted
+        from ulmen.core._ulmen_llm import _split_rows_quoted
         text = '"hello\n""world""\n"\nline2'
         rows = _split_rows_quoted(text)
         assert len(rows) == 2
 
     def test_read_balanced_quoted_string(self):
         # covers llm428-431: quoted string inside balanced read
-        from lumen.core._lumen_llm import _read_balanced
+        from ulmen.core._ulmen_llm import _read_balanced
         tok, end = _read_balanced('{"key":"val"}', 0, '{', '}')
         assert tok == '{"key":"val"}'
 
     def test_read_balanced_quoted_with_close(self):
-        from lumen.core._lumen_llm import _read_balanced
+        from ulmen.core._ulmen_llm import _read_balanced
         tok, end = _read_balanced('["a}b"]', 0, '[', ']')
         assert tok == '["a}b"]'
 
     def test_non_dict_records_list(self):
         # non-dict records: scalar list
-        result = encode_lumen_llm([1, 2, 3])
-        decoded = decode_lumen_llm(result)
+        result = encode_ulmen_llm([1, 2, 3])
+        decoded = decode_ulmen_llm(result)
         assert decoded == [1, 2, 3]
 
     def test_empty_data_rows_skipped(self):
         # empty rows in data section are skipped
-        result = decode_lumen_llm("L|id:d\n1\n\n2")
+        result = decode_ulmen_llm("L|id:d\n1\n\n2")
         assert len(result) == 2
 
     def test_type_violation_promotes_to_mixed(self):
         # col starts as int, then gets string -> promotes to m
         records = [{"x": 1}, {"x": "hello"}]
-        enc = encode_lumen_llm(records)
+        enc = encode_ulmen_llm(records)
         assert "x:m" in enc
-        dec = decode_lumen_llm(enc)
+        dec = decode_ulmen_llm(enc)
         assert dec[0]["x"] == 1
         assert dec[1]["x"] == "hello"
 
@@ -690,7 +690,7 @@ class TestTextMissingCoverage:
     """Cover _text.py line 123: ctx != 'val' branch."""
 
     def test_encode_obj_iterative_non_val_ctx(self):
-        from lumen.core._text import _encode_obj_iterative_text
+        from ulmen.core._text import _encode_obj_iterative_text
         # The stack-based encoder pushes (obj, 'val') tuples
         # ctx != 'val' is an internal guard - test nested structures
         # to ensure the stack processes correctly
@@ -699,43 +699,43 @@ class TestTextMissingCoverage:
         assert "42" in result
 
     def test_encode_obj_deep_list(self):
-        from lumen.core._text import _encode_obj_iterative_text
+        from ulmen.core._text import _encode_obj_iterative_text
         deep = [[1, 2], [3, 4]]
         result = _encode_obj_iterative_text(deep, {})
         assert "1" in result and "4" in result
 
 
 class TestCorePyShim:
-    """Cover lumen/core.py shim — 0% coverage."""
+    """Cover ulmen/core.py shim — 0% coverage."""
 
     def test_core_py_imports(self):
-        # Importing lumen.core.py shim via the module path
+        # Importing ulmen.core.py shim via the module path
         import importlib.util
-        # force import of lumen/core.py (not the package)
+        # force import of ulmen/core.py (not the package)
         spec = importlib.util.spec_from_file_location(
-            "lumen_core_shim",
-            "lumen/core.py"
+            "ulmen_core_shim",
+            "ulmen/core.py"
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        assert hasattr(mod, "LumenDict")
+        assert hasattr(mod, "UlmenDict")
         assert hasattr(mod, "encode_varint")
 
 
 class TestInitMissingCoverage:
-    """Cover lumen/__init__.py lines 184,188 — Rust encode/decode_lumen_llm."""
+    """Cover ulmen/__init__.py lines 184,188 — Rust encode/decode_ulmen_llm."""
 
-    def test_encode_lumen_llm_via_init(self):
-        from lumen import encode_lumen_llm
+    def test_encode_ulmen_llm_via_init(self):
+        from ulmen import encode_ulmen_llm
         records = [{"id": 1, "name": "Alice"}]
-        result = encode_lumen_llm(records)
+        result = encode_ulmen_llm(records)
         assert result.startswith("L|")
 
-    def test_decode_lumen_llm_via_init(self):
-        from lumen import decode_lumen_llm, encode_lumen_llm
+    def test_decode_ulmen_llm_via_init(self):
+        from ulmen import decode_ulmen_llm, encode_ulmen_llm
         records = [{"id": 1, "name": "Alice"}]
-        enc = encode_lumen_llm(records)
-        dec = decode_lumen_llm(enc)
+        enc = encode_ulmen_llm(records)
+        dec = decode_ulmen_llm(enc)
         assert dec[0]["id"] == 1
 
 
@@ -748,11 +748,11 @@ class TestSlowPathNonPlainRow:
             {"name": "Alice,Bob", "meta": {"k": "v"}},
             {"name": "Carol", "meta": {"x": 1}},
         ]
-        enc = encode_lumen_llm(records)
+        enc = encode_ulmen_llm(records)
         # enc will have quoted name field AND nested dict -> needs_slow=True
         # AND data rows are non-plain (contain {)
         assert '"' in enc or '{' in enc
-        dec = decode_lumen_llm(enc)
+        dec = decode_ulmen_llm(enc)
         assert len(dec) == 2
         assert dec[0]["name"] == "Alice,Bob"
         assert dec[0]["meta"] == {"k": "v"}
@@ -760,10 +760,10 @@ class TestSlowPathNonPlainRow:
 
     def test_slow_path_empty_row_skipped(self):
         # llm line 329: if not row: continue in slow path
-        from lumen.core._lumen_llm import decode_lumen_llm
+        from ulmen.core._ulmen_llm import decode_ulmen_llm
         # manually craft payload that has quotes (triggers slow) + empty row
         text = 'L|name:s\n"Alice,Bob"\n\n"Carol"'
-        dec = decode_lumen_llm(text)
+        dec = decode_ulmen_llm(text)
         assert len(dec) == 2
 
 
@@ -773,7 +773,7 @@ class TestTextCtxNotVal:
         # The stack pops (item, ctx) — ctx is always 'val' in current impl
         # but we can verify the function works correctly for all types
         # which exercises the full stack loop
-        from lumen.core._text import _encode_obj_iterative_text
+        from ulmen.core._text import _encode_obj_iterative_text
 
         # Test with None - hits parts.append('N') after ctx check
         assert _encode_obj_iterative_text(None, {}) == "N"
@@ -800,9 +800,9 @@ class TestSlowPathPlainDataRow:
         # Covers llm 331-334: needs_slow=True (header quoted) but data rows are plain
         # Header has quoted key -> needs_slow=True
         # Data rows have no quotes/braces -> _row_is_plain=True -> hits lines 331-334
-        from lumen.core._lumen_llm import decode_lumen_llm
+        from ulmen.core._ulmen_llm import decode_ulmen_llm
         text = 'L|"first,name":s,age:d\nAlice,30\nBob,25'
-        result = decode_lumen_llm(text)
+        result = decode_ulmen_llm(text)
         assert len(result) == 2
         assert result[0]['"first,name"'] == "Alice"
         assert result[0]["age"] == 30
@@ -811,9 +811,9 @@ class TestSlowPathPlainDataRow:
 
     def test_needs_slow_plain_row_mismatched_cols(self):
         # Covers llm 335-337 else branch: n != n_keys in slow+plain path
-        from lumen.core._lumen_llm import decode_lumen_llm
+        from ulmen.core._ulmen_llm import decode_ulmen_llm
         text = 'L|"first,name":s,age:d,score:f\nAlice,30'
-        result = decode_lumen_llm(text)
+        result = decode_ulmen_llm(text)
         assert result[0]['"first,name"'] == "Alice"
         assert result[0]["age"] == 30
         assert result[0]["score"] is None

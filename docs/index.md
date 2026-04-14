@@ -1,4 +1,4 @@
-# LUMEN V1 Documentation
+# ULMEN V1 Documentation
 
 Lightweight Universal Minimal Encoding Notation
 
@@ -7,7 +7,7 @@ Proprietary and confidential.
 
 ---
 
-LUMEN is a serialization format built for three goals: smallest possible output, fastest possible encode and decode, and native compatibility with language model context windows.
+ULMEN is a serialization format built for three goals: smallest possible output, fastest possible encode and decode, and native compatibility with language model context windows.
 
 It ships as a pure Python library with an optional Rust acceleration layer
 that is drop-in compatible and produces byte-identical output.
@@ -29,7 +29,7 @@ that is drop-in compatible and produces byte-identical output.
 |---|---|
 | [Binary Format](guides/binary-format.md) | Columnar binary encoding, pool and strategy selection |
 | [Text Format](guides/text-format.md) | Human-readable line-oriented encoding |
-| [LUMIA](guides/lumia.md) | LLM-native CSV surface for language model communication |
+| [ULMEN](guides/ulmen.md) | LLM-native CSV surface for language model communication |
 | [Compression](guides/compression.md) | Zlib, pool tuning, strategy selection, size tradeoffs |
 
 ### Reference
@@ -41,11 +41,11 @@ that is drop-in compatible and produces byte-identical output.
 | [Primitives](reference/primitives.md) | Low-level codec functions for custom encoders |
 | [Benchmarks](reference/benchmarks.md) | Real measured size and speed numbers |
 
-### LUMEN-AGENT
+### ULMEN-AGENT
 
 | Document | Description |
 |---|---|
-| [Overview](agent/overview.md) | What LUMEN-AGENT is and when to use it |
+| [Overview](agent/overview.md) | What ULMEN-AGENT is and when to use it |
 | [Specification](agent/spec.md) | Formal wire format and validation rules |
 | [System Prompt](agent/system-prompt.md) | LLM system prompt for agent communication |
 
@@ -64,8 +64,8 @@ that is drop-in compatible and produces byte-identical output.
 |---|---|---|
 | Binary | `LUMB` | Storage, IPC, network transport |
 | Text | `records[N]:` | Human-readable, diff-friendly |
-| LUMIA | `L\|` | LLM-native, token-efficient |
-| LUMEN-AGENT | `LUMEN-AGENT v1` | Structured agentic protocol |
+| ULMEN | `L\|` | LLM-native, token-efficient |
+| ULMEN-AGENT | `ULMEN-AGENT v1` | Structured agentic protocol |
 
 ---
 
@@ -76,17 +76,17 @@ Measured on 1,000 records, 10 mixed-type columns, Python 3.12, rustc 1.92.
 | Format | Size | vs JSON |
 |---|---:|---:|
 | JSON | 145,664 bytes | 100.0% |
-| LUMEN binary | 32,701 bytes | 22.4% |
-| LUMEN zlib-6 | 2,453 bytes | 1.7% |
-| LUMEN text | 46,779 bytes | 32.1% |
-| LUMIA | 57,403 bytes | 39.4% |
+| ULMEN binary | 32,701 bytes | 22.4% |
+| ULMEN zlib-6 | 2,453 bytes | 1.7% |
+| ULMEN text | 46,779 bytes | 32.1% |
+| ULMEN | 57,403 bytes | 39.4% |
 
 | Format | Encode ms | vs JSON |
 |---|---:|---|
 | JSON | 1.264 | baseline |
-| LUMEN binary Python | 13.579 | 0.09x |
-| LUMEN binary Rust | 1.013 | 1.2x faster |
-| LUMEN text Rust | 1.018 | 1.2x faster |
+| ULMEN binary Python | 13.579 | 0.09x |
+| ULMEN binary Rust | 1.013 | 1.2x faster |
+| ULMEN text Rust | 1.018 | 1.2x faster |
 
 ---
 

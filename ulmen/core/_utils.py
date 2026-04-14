@@ -10,7 +10,7 @@ import sys
 from typing import Any
 
 __version__ = "1.0.0"
-__edition__ = "LUMEN V1"
+__edition__ = "ULMEN V1"
 
 
 def fnv1a(data: bytes) -> int:

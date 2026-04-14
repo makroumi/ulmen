@@ -1,6 +1,6 @@
 # Binary Format Guide
 
-The LUMEN binary format is the primary wire format. It is designed to be
+The ULMEN binary format is the primary wire format. It is designed to be
 the smallest and fastest way to serialize structured records.
 
 ---
@@ -14,23 +14,23 @@ Use binary when:
 - You do not need the output to be human-readable
 
 Use text when you need human-readable, diffable output.
-Use LUMIA when the consumer is a language model.
+Use ULMEN when the consumer is a language model.
 
 ---
 
 ## Basic Usage
 
 ```python
-from lumen import LumenDict, LumenDictRust, decode_binary_records
+from ulmen import UlmenDict, UlmenDictRust, decode_binary_records
 
 records = [{"id": i, "city": "London", "score": 9.5} for i in range(1000)]
 
 # Python
-ld     = LumenDict(records)
+ld     = UlmenDict(records)
 binary = ld.encode_binary_pooled()
 
 # Rust (13x faster, byte-identical)
-ld     = LumenDictRust(records)
+ld     = UlmenDictRust(records)
 binary = ld.encode_binary_pooled()
 
 # Decode
@@ -46,7 +46,7 @@ encode_binary()|off by default|yes|raw storage without overhead
 encode_binary_pooled()|on|yes|maximum compression
 encode_binary_zlog(level=6)|on|yes|smallest possible output
 
-optimizations=True on LumenDict turns strategies on for encode_binary().
+optimizations=True on UlmenDict turns strategies on for encode_binary().
 
 ---
 
@@ -60,7 +60,7 @@ frequency x (length - ref_cost) > 0
 
 ```Python
 
-from lumen import build_pool
+from ulmen import build_pool
 
 records = [{"city": "London"} for _ in range(1000)]
 pool, pool_map = build_pool(records, max_pool=64)
@@ -69,19 +69,19 @@ print(pool)      # ["London"]
 print(pool_map)  # {"London": 0}
 ```
 
-'LumenDict' manages the pool automatically. Use 'build_pool' directly only
+'UlmenDict' manages the pool automatically. Use 'build_pool' directly only
 when calling the low-level encoder.
 
 Pool size limit:
 
-- 'LumenDict': 64 entries
-- 'LumenDictFull': up to 256 entries (configurable)
-- 'LumenDictRust': configurable via pool_size_limit parameter
+- 'UlmenDict': 64 entries
+- 'UlmenDictFull': up to 256 entries (configurable)
+- 'UlmenDictRust': configurable via pool_size_limit parameter
 
 ---
 
 ## Column Strategies
-When encoding multiple records, LUMEN stores data column by column
+When encoding multiple records, ULMEN stores data column by column
 and selects the best encoding strategy per column.
 
 Strategy|Byte|Applied when
@@ -94,7 +94,7 @@ POOL|0x04|All strings, unique count below threshold
 Check what strategy a column will use:
 
 ```Python
-from lumen import compute_delta_savings, compute_rle_savings, compute_bits_savings
+from ulmen import compute_delta_savings, compute_rle_savings, compute_bits_savings
 
 compute_delta_savings([1, 2, 3, 4, 5])
 # {"raw": 10, "delta": 7, "saving": 3, "pct": 30.0}
@@ -109,7 +109,7 @@ compute_bits_savings([True, False, True, True])
 For custom use cases, call the encoder directly:
 
 ```Python
-from lumen import build_pool, encode_binary_records, decode_binary_records
+from ulmen import build_pool, encode_binary_records, decode_binary_records
 
 records  = [{"id": i, "name": f"user_{i}"} for i in range(100)]
 pool, pm = build_pool(records, max_pool=64)
@@ -137,7 +137,7 @@ encoding specification.
 
 ##  Zlib Compression
 ```Python
-ld = LumenDictRust(records)
+ld = UlmenDictRust(records)
 
 zlib6 = ld.encode_binary_zlib(level=6)   # balanced
 zlib9 = ld.encode_binary_zlib(level=9)   # smallest, slower
@@ -151,6 +151,6 @@ Decompress with standard zlib:
 ```Python
 import zlib
 raw = zlib.decompress(zlib6)
-from lumen import decode_binary_records
+from ulmen import decode_binary_records
 back = decode_binary_records(raw)
 ```

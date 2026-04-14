@@ -1,6 +1,6 @@
 # Text Format Guide
 
-The LUMEN text format is a line-oriented, human-readable serialization
+The ULMEN text format is a line-oriented, human-readable serialization
 format. It uses the same pool and strategy system as binary but outputs
 plain UTF-8 text.
 
@@ -14,14 +14,14 @@ Use text when:
 - Integrating with line-based tools (grep, awk, diff)
 
 Use binary for production data transfer where size matters.
-Use LUMIA when the consumer is a language model.
+Use ULMEN when the consumer is a language model.
 
 ---
 
 ## Basic Usage
 
 ```python
-from lumen import LumenDict, LumenDictRust, decode_text_records
+from ulmen import UlmenDict, UlmenDictRust, decode_text_records
 
 records = [
     {"id": 1, "city": "London", "active": True},
@@ -29,7 +29,7 @@ records = [
     {"id": 3, "city": "London", "active": True},
 ]
 
-ld   = LumenDict(records)
+ld   = UlmenDict(records)
 text = ld.encode_text()
 print(text)
 ```
@@ -130,11 +130,11 @@ The remaining columns are written tab-delimited, one row per line.
 
 ## Low-Level Encoder
 ```Python
-from lumen import build_pool, encode_text_records, decode_text_records
+from ulmen import build_pool, encode_text_records, decode_text_records
 
 records  = [{"id": i, "city": "London"} for i in range(10)]
 pool, pm = build_pool(records, max_pool=64)
 text     = encode_text_records(records, pool, pm, matrix_mode=True)
 back     = decode_text_records(text)
 ```
-Set [matrix_mode](reference/api.md#lumen.encode_text_records) to force SCHEMA format even for multiple records.
+Set [matrix_mode](reference/api.md#ulmen.encode_text_records) to force SCHEMA format even for multiple records.

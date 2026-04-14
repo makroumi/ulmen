@@ -1,14 +1,14 @@
 """
-Public API classes: LumenDict and LumenDictFull.
+Public API classes: UlmenDict and UlmenDictFull.
 
 These classes are thin stateful wrappers around the stateless codec
 functions. They add:
     Automatic pool management (build_pool called on init and after append)
     Encode result caching (invalidated on mutation)
-    Convenience methods (decode_text, decode_binary, to_json, encode_lumen_llm)
+    Convenience methods (decode_text, decode_binary, to_json, encode_ulmen_llm)
 
-LumenDict      default pool size (64), strategies optional
-LumenDictFull  extended pool (up to 256), strategies always on
+UlmenDict      default pool size (64), strategies optional
+UlmenDictFull  extended pool (up to 256), strategies always on
 """
 
 import json
@@ -16,16 +16,16 @@ import math
 import zlib
 from typing import Any
 
-from lumen.core._binary import decode_binary_records, encode_binary_records
-from lumen.core._lumen_llm import decode_lumen_llm, encode_lumen_llm
-from lumen.core._strategies import build_pool
-from lumen.core._text import decode_text_records, encode_text_records
-from lumen.core._utils import __version__
+from ulmen.core._binary import decode_binary_records, encode_binary_records
+from ulmen.core._strategies import build_pool
+from ulmen.core._text import decode_text_records, encode_text_records
+from ulmen.core._ulmen_llm import decode_ulmen_llm, encode_ulmen_llm
+from ulmen.core._utils import __version__
 
 
-class LumenDict:
+class UlmenDict:
     """
-    LUMEN record container — Python reference implementation.
+    ULMEN record container — Python reference implementation.
 
     Manages a list of records together with an automatically maintained
     string pool. Encode results (text and binary) are cached and invalidated
@@ -45,7 +45,7 @@ class LumenDict:
         '_data', '_pool', '_pool_map', '_optimizations',
         '_pool_built', '_version',
         '_text_cache', '_binary_raw_cache', '_binary_strat_cache',
-        '_lumen_llm_cache',
+        '_ulmen_llm_cache',
     )
     VERSION = __version__
 
@@ -55,7 +55,7 @@ class LumenDict:
         self._text_cache         = None
         self._binary_raw_cache   = None
         self._binary_strat_cache = None
-        self._lumen_llm_cache    = None
+        self._ulmen_llm_cache    = None
 
         if data is None:
             self._data = []
@@ -77,7 +77,7 @@ class LumenDict:
         self._text_cache         = None
         self._binary_raw_cache   = None
         self._binary_strat_cache = None
-        self._lumen_llm_cache    = None
+        self._ulmen_llm_cache    = None
 
     # ------------------------------------------------------------------
     # Mutation
@@ -117,7 +117,7 @@ class LumenDict:
     # ------------------------------------------------------------------
 
     def encode_text(self, matrix_mode: bool = True) -> str:
-        """Encode to LUMEN text format. Result is cached until next mutation."""
+        """Encode to ULMEN text format. Result is cached until next mutation."""
         if self._text_cache is None:
             self._text_cache = encode_text_records(
                 self._data, self._pool, self._pool_map,
@@ -127,7 +127,7 @@ class LumenDict:
 
     def encode_binary(self) -> bytes:
         """
-        Encode to LUMEN binary. Result is cached until next mutation.
+        Encode to ULMEN binary. Result is cached until next mutation.
         Strategies are applied only when optimizations=True.
         """
         if self._optimizations:
@@ -145,7 +145,7 @@ class LumenDict:
         return self._binary_raw_cache
 
     def encode_binary_pooled(self) -> bytes:
-        """Encode to LUMEN binary with all column strategies enabled."""
+        """Encode to ULMEN binary with all column strategies enabled."""
         if self._binary_strat_cache is None:
             self._binary_strat_cache = encode_binary_records(
                 self._data, self._pool, self._pool_map,
@@ -157,40 +157,40 @@ class LumenDict:
         """Encode with all strategies then compress with zlib (level 0-9)."""
         return zlib.compress(self.encode_binary_pooled(), level)
 
-    def encode_lumen_llm(self) -> str:
+    def encode_ulmen_llm(self) -> str:
         """
-        Encode to LUMIA format — the LLM-native text surface.
+        Encode to ULMEN format — the LLM-native text surface.
 
-        LUMIA is a header-prefixed CSV where every row is self-describing.
-        An LLM can read and generate LUMIA without any special training.
+        ULMEN is a header-prefixed CSV where every row is self-describing.
+        An LLM can read and generate ULMEN without any special training.
         Result is cached until next mutation.
         """
-        if self._lumen_llm_cache is None:
-            self._lumen_llm_cache = encode_lumen_llm(self._data)
-        return self._lumen_llm_cache
+        if self._ulmen_llm_cache is None:
+            self._ulmen_llm_cache = encode_ulmen_llm(self._data)
+        return self._ulmen_llm_cache
 
     # ------------------------------------------------------------------
     # Decoders (return new instances)
     # ------------------------------------------------------------------
 
-    def decode_text(self, text: str) -> 'LumenDict':
-        """Decode a LUMEN text payload into a new LumenDict."""
-        return LumenDict(
+    def decode_text(self, text: str) -> 'UlmenDict':
+        """Decode a ULMEN text payload into a new UlmenDict."""
+        return UlmenDict(
             decode_text_records(text),
             optimizations=self._optimizations,
         )
 
-    def decode_binary(self, data: bytes) -> 'LumenDict':
-        """Decode a LUMEN binary payload into a new LumenDict."""
+    def decode_binary(self, data: bytes) -> 'UlmenDict':
+        """Decode a ULMEN binary payload into a new UlmenDict."""
         decoded = decode_binary_records(data)
         if not isinstance(decoded, list):
             decoded = [decoded]
-        return LumenDict(decoded, optimizations=self._optimizations)
+        return UlmenDict(decoded, optimizations=self._optimizations)
 
-    def decode_lumen_llm(self, text: str) -> 'LumenDict':
-        """Decode a LUMIA payload into a new LumenDict."""
-        return LumenDict(
-            decode_lumen_llm(text),
+    def decode_ulmen_llm(self, text: str) -> 'UlmenDict':
+        """Decode a ULMEN payload into a new UlmenDict."""
+        return UlmenDict(
+            decode_ulmen_llm(text),
             optimizations=self._optimizations,
         )
 
@@ -216,20 +216,20 @@ class LumenDict:
 
     def __repr__(self) -> str:
         return (
-            f"LumenDict("
+            f"UlmenDict("
             f"records={len(self._data)}, "
             f"pool={len(self._pool)}, "
             f"optimizations={self._optimizations})"
         )
 
 
-class LumenDictFull(LumenDict):
+class UlmenDictFull(UlmenDict):
     """
-    LumenDict with an extended string pool and strategies always enabled.
+    UlmenDict with an extended string pool and strategies always enabled.
 
     Suitable for large repetitive datasets where maximising compression
     is more important than encode speed. The pool can hold up to
-    pool_size_limit strings vs the fixed 64 in LumenDict.
+    pool_size_limit strings vs the fixed 64 in UlmenDict.
 
     Parameters
     ----------
@@ -248,7 +248,7 @@ class LumenDictFull(LumenDict):
         self._text_cache         = None
         self._binary_raw_cache   = None
         self._binary_strat_cache = None
-        self._lumen_llm_cache    = None
+        self._ulmen_llm_cache    = None
 
         if data is None:
             self._data = []
@@ -285,7 +285,7 @@ class LumenDictFull(LumenDict):
 
     def __repr__(self) -> str:
         return (
-            f"LumenDictFull("
+            f"UlmenDictFull("
             f"records={len(self._data)}, "
             f"pool={len(self._pool)}, "
             f"pool_limit={self._pool_size_limit})"
@@ -296,13 +296,13 @@ class LumenDictFull(LumenDict):
 # Module-level shortcuts — fastest path for one-shot encode/decode
 # ---------------------------------------------------------------------------
 
-def encode_lumen_llm_direct(records: list) -> str:
-    """Encode records to LUMIA without constructing a LumenDict."""
-    from lumen.core._lumen_llm import encode_lumen_llm as _enc
+def encode_ulmen_llm_direct(records: list) -> str:
+    """Encode records to ULMEN without constructing a UlmenDict."""
+    from ulmen.core._ulmen_llm import encode_ulmen_llm as _enc
     return _enc(records)
 
 
-def decode_lumen_llm_direct(text: str) -> list:
-    """Decode LUMIA text without constructing a LumenDict."""
-    from lumen.core._lumen_llm import decode_lumen_llm as _dec
+def decode_ulmen_llm_direct(text: str) -> list:
+    """Decode ULMEN text without constructing a UlmenDict."""
+    from ulmen.core._ulmen_llm import decode_ulmen_llm as _dec
     return _dec(text)

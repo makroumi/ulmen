@@ -1,27 +1,27 @@
 """
-Unit tests for lumen/core/_streaming.py — 100% coverage target.
+Unit tests for ulmen/core/_streaming.py — 100% coverage target.
 
 Covers:
   _PyStreamEncoder              — pure-Python fallback encoder
-  LumenStreamEncoder            — public facade (Rust or Python backend)
+  UlmenStreamEncoder            — public facade (Rust or Python backend)
   stream_encode()               — one-shot helper
   stream_encode_windowed()      — window-based unbounded streaming
-  stream_encode_lumia()         — LUMIA string streaming
+  stream_encode_ulmen()         — ULMEN string streaming
 
 Every line in _streaming.py is exercised explicitly.
 """
 from __future__ import annotations
 
-from lumen import RUST_AVAILABLE
-from lumen.core._binary import decode_binary_records
-from lumen.core._lumen_llm import decode_lumen_llm
-from lumen.core._streaming import (
-    LumenStreamEncoder,
+from ulmen import RUST_AVAILABLE
+from ulmen.core._binary import decode_binary_records
+from ulmen.core._streaming import (
+    UlmenStreamEncoder,
     _PyStreamEncoder,
     stream_encode,
-    stream_encode_lumia,
+    stream_encode_ulmen,
     stream_encode_windowed,
 )
+from ulmen.core._ulmen_llm import decode_ulmen_llm
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -194,130 +194,130 @@ class TestPyStreamEncoderRecordCount:
 
 
 # ===========================================================================
-# LumenStreamEncoder — public facade (lines 129-193)
+# UlmenStreamEncoder — public facade (lines 129-193)
 # ===========================================================================
 
-class TestLumenStreamEncoderConstruction:
+class TestUlmenStreamEncoderConstruction:
     """Lines 129-142: __init__, backend selection."""
 
     def test_default_params(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         assert enc._pool_size_limit == 64
         assert enc._chunk_size == 65536
 
     def test_custom_params(self):
-        enc = LumenStreamEncoder(pool_size_limit=32, chunk_size=2048)
+        enc = UlmenStreamEncoder(pool_size_limit=32, chunk_size=2048)
         assert enc._pool_size_limit == 32
         assert enc._chunk_size == 2048
 
     def test_chunk_size_minimum_256(self):
-        enc = LumenStreamEncoder(chunk_size=10)
+        enc = UlmenStreamEncoder(chunk_size=10)
         assert enc._chunk_size == 256
 
     def test_rust_backed_property(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         assert isinstance(enc.rust_backed, bool)
         assert enc.rust_backed == RUST_AVAILABLE
 
     def test_repr(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         r = repr(enc)
-        assert "LumenStreamEncoder" in r
+        assert "UlmenStreamEncoder" in r
         assert "pool_limit" in r
         assert "chunk_size" in r
         assert "backend" in r
 
     def test_repr_contains_record_count(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed({"id": 1})
         r = repr(enc)
         assert "1" in r
 
 
-class TestLumenStreamEncoderFeed:
+class TestUlmenStreamEncoderFeed:
     """Lines 146-150: feed() dispatches to Rust or Python."""
 
     def test_feed_returns_self(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         result = enc.feed({"id": 1})
         assert result is enc
 
     def test_feed_increments_count(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed({"id": 1})
         assert enc.record_count() == 1
 
     def test_feed_chaining(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed({"id": 0}).feed({"id": 1}).feed({"id": 2})
         assert enc.record_count() == 3
 
 
-class TestLumenStreamEncoderFeedMany:
+class TestUlmenStreamEncoderFeedMany:
     """Lines 154-159: feed_many() dispatches to Rust or Python."""
 
     def test_feed_many_list(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(_records(10))
         assert enc.record_count() == 10
 
     def test_feed_many_returns_self(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         result = enc.feed_many(_records(3))
         assert result is enc
 
     def test_feed_many_generator_converted_to_list(self):
         """Rust path requires list — generator is materialized."""
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many({"id": i} for i in range(5))
         assert enc.record_count() == 5
 
     def test_feed_many_empty(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many([])
         assert enc.record_count() == 0
 
     def test_feed_many_chaining(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(_records(3)).feed_many(_records(3))
         assert enc.record_count() == 6
 
 
-class TestLumenStreamEncoderRecordCount:
+class TestUlmenStreamEncoderRecordCount:
     """Lines 163-165: record_count() on both backends."""
 
     def test_count_zero(self):
-        assert LumenStreamEncoder().record_count() == 0
+        assert UlmenStreamEncoder().record_count() == 0
 
     def test_count_matches_fed(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(_records(7))
         assert enc.record_count() == 7
 
 
-class TestLumenStreamEncoderFlush:
+class TestUlmenStreamEncoderFlush:
     """Lines 172-177: flush() yields bytes, auto-resets."""
 
     def test_flush_empty(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         chunks = list(enc.flush())
         payload = _reassemble(chunks)
         assert payload[:4] == b"LUMB"
 
     def test_flush_yields_bytes(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed({"id": 1})
         for chunk in enc.flush():
             assert isinstance(chunk, bytes)
 
     def test_flush_resets_after(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(_records(5))
         list(enc.flush())
         assert enc.record_count() == 0
 
     def test_flush_round_trip_single(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed({"id": 42, "name": "Alice", "dept": "Eng"})
         payload = _reassemble(enc.flush())
         result = decode_binary_records(payload)
@@ -328,14 +328,14 @@ class TestLumenStreamEncoderFlush:
 
     def test_flush_round_trip_multi(self):
         recs = _records(100)
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(recs)
         payload = _reassemble(enc.flush())
         result = decode_binary_records(payload)
         assert len(result) == 100
 
     def test_flush_small_chunk_size(self):
-        enc = LumenStreamEncoder(chunk_size=64)
+        enc = UlmenStreamEncoder(chunk_size=64)
         enc.feed_many(_records(30))
         chunks = list(enc.flush())
         assert all(isinstance(c, bytes) for c in chunks)
@@ -344,7 +344,7 @@ class TestLumenStreamEncoderFlush:
         assert len(result) == 30
 
     def test_flush_reusable_after_reset(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(_records(5))
         list(enc.flush())
         enc.feed_many(_records(3))
@@ -353,57 +353,57 @@ class TestLumenStreamEncoderFlush:
         assert len(result) == 3
 
 
-class TestLumenStreamEncoderReset:
+class TestUlmenStreamEncoderReset:
     """Lines 181-184: reset() discards buffered records."""
 
     def test_reset_discards(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(_records(10))
         enc.reset()
         assert enc.record_count() == 0
 
     def test_reset_then_reuse(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(_records(5))
         enc.reset()
         enc.feed_many(_records(2))
         assert enc.record_count() == 2
 
     def test_reset_on_empty(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.reset()  # must not raise
         assert enc.record_count() == 0
 
 
-class TestLumenStreamEncoderRustBackedProperty:
+class TestUlmenStreamEncoderRustBackedProperty:
     """Line 189: rust_backed property."""
 
     def test_rust_backed_is_bool(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         assert isinstance(enc.rust_backed, bool)
 
     def test_rust_backed_matches_rust_available(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         assert enc.rust_backed == RUST_AVAILABLE
 
 
 # ===========================================================================
-# LumenStreamEncoder — Python fallback forced (lines 136-142)
+# UlmenStreamEncoder — Python fallback forced (lines 136-142)
 # Force the Python path regardless of Rust availability.
 # ===========================================================================
 
-class TestLumenStreamEncoderForcedPythonPath:
+class TestUlmenStreamEncoderForcedPythonPath:
     """
     Cover lines 136-142 (else branch): _inner = _PyStreamEncoder.
     Patch _RUST_STREAM to False to force Python fallback.
     """
 
     def test_python_fallback_feed_and_flush(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         orig = _sm._RUST_STREAM
         try:
             _sm._RUST_STREAM = False
-            enc = LumenStreamEncoder()
+            enc = UlmenStreamEncoder()
             assert not enc._rust
             enc.feed({"id": 1, "name": "Alice"})
             payload = _reassemble(enc.flush())
@@ -415,33 +415,33 @@ class TestLumenStreamEncoderForcedPythonPath:
             _sm._RUST_STREAM = orig
 
     def test_python_fallback_feed_many(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         orig = _sm._RUST_STREAM
         try:
             _sm._RUST_STREAM = False
-            enc = LumenStreamEncoder()
+            enc = UlmenStreamEncoder()
             enc.feed_many(_records(10))
             assert enc.record_count() == 10
         finally:
             _sm._RUST_STREAM = orig
 
     def test_python_fallback_record_count(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         orig = _sm._RUST_STREAM
         try:
             _sm._RUST_STREAM = False
-            enc = LumenStreamEncoder()
+            enc = UlmenStreamEncoder()
             enc.feed_many(_records(5))
             assert enc.record_count() == 5
         finally:
             _sm._RUST_STREAM = orig
 
     def test_python_fallback_flush_yields(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         orig = _sm._RUST_STREAM
         try:
             _sm._RUST_STREAM = False
-            enc = LumenStreamEncoder()
+            enc = UlmenStreamEncoder()
             enc.feed_many(_records(5))
             chunks = list(enc.flush())
             assert len(chunks) >= 1
@@ -450,11 +450,11 @@ class TestLumenStreamEncoderForcedPythonPath:
             _sm._RUST_STREAM = orig
 
     def test_python_fallback_reset(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         orig = _sm._RUST_STREAM
         try:
             _sm._RUST_STREAM = False
-            enc = LumenStreamEncoder()
+            enc = UlmenStreamEncoder()
             enc.feed_many(_records(5))
             enc.reset()
             assert enc.record_count() == 0
@@ -462,11 +462,11 @@ class TestLumenStreamEncoderForcedPythonPath:
             _sm._RUST_STREAM = orig
 
     def test_python_fallback_repr(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         orig = _sm._RUST_STREAM
         try:
             _sm._RUST_STREAM = False
-            enc = LumenStreamEncoder()
+            enc = UlmenStreamEncoder()
             r = repr(enc)
             assert "python" in r
         finally:
@@ -627,7 +627,7 @@ class TestStreamEncodeWindowedPythonPath:
     """
 
     def test_python_path_basic(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         orig = _sm._RUST_STREAM
         try:
             _sm._RUST_STREAM = False
@@ -641,7 +641,7 @@ class TestStreamEncodeWindowedPythonPath:
             _sm._RUST_STREAM = orig
 
     def test_python_path_generator_input(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         orig = _sm._RUST_STREAM
         try:
             _sm._RUST_STREAM = False
@@ -657,7 +657,7 @@ class TestStreamEncodeWindowedPythonPath:
             _sm._RUST_STREAM = orig
 
     def test_python_path_empty(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         orig = _sm._RUST_STREAM
         try:
             _sm._RUST_STREAM = False
@@ -667,7 +667,7 @@ class TestStreamEncodeWindowedPythonPath:
             _sm._RUST_STREAM = orig
 
     def test_python_path_single_window(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         orig = _sm._RUST_STREAM
         try:
             _sm._RUST_STREAM = False
@@ -680,7 +680,7 @@ class TestStreamEncodeWindowedPythonPath:
             _sm._RUST_STREAM = orig
 
     def test_python_path_remainder_flushed(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         orig = _sm._RUST_STREAM
         try:
             _sm._RUST_STREAM = False
@@ -694,56 +694,56 @@ class TestStreamEncodeWindowedPythonPath:
 
 
 # ===========================================================================
-# stream_encode_lumia() — LUMIA string streaming (lines 321-328)
+# stream_encode_ulmen() — ULMEN string streaming (lines 321-328)
 # ===========================================================================
 
-class TestStreamEncodeLumia:
-    """Lines 321-328: stream_encode_lumia()."""
+class TestStreamEncodeUlmen:
+    """Lines 321-328: stream_encode_ulmen()."""
 
     def test_empty_records(self):
-        chunks = list(stream_encode_lumia([]))
+        chunks = list(stream_encode_ulmen([]))
         payload = _reassemble_str(chunks)
         assert payload.startswith("L|")
 
     def test_single_record(self):
-        chunks = list(stream_encode_lumia([{"id": 1, "name": "Alice"}]))
+        chunks = list(stream_encode_ulmen([{"id": 1, "name": "Alice"}]))
         payload = _reassemble_str(chunks)
         assert payload.startswith("L|")
-        result = decode_lumen_llm(payload)
+        result = decode_ulmen_llm(payload)
         assert len(result) == 1
         assert result[0]["id"] == 1
 
     def test_multi_record(self):
         recs = [{"id": i, "name": f"User_{i}"} for i in range(10)]
-        chunks = list(stream_encode_lumia(recs))
+        chunks = list(stream_encode_ulmen(recs))
         payload = _reassemble_str(chunks)
-        result = decode_lumen_llm(payload)
+        result = decode_ulmen_llm(payload)
         assert len(result) == 10
 
     def test_yields_strings(self):
-        for chunk in stream_encode_lumia(_records(5)):
+        for chunk in stream_encode_ulmen(_records(5)):
             assert isinstance(chunk, str)
 
     def test_first_chunk_contains_header(self):
         """First chunk must contain the L| header."""
         recs = _records(20)
-        chunks = list(stream_encode_lumia(recs, chunk_size=256))
+        chunks = list(stream_encode_ulmen(recs, chunk_size=256))
         assert chunks[0].startswith("L|")
 
     def test_custom_chunk_size_forces_multiple_chunks(self):
         recs = _records(30)
-        chunks = list(stream_encode_lumia(recs, chunk_size=64))
+        chunks = list(stream_encode_ulmen(recs, chunk_size=64))
         assert len(chunks) > 1
         payload = _reassemble_str(chunks)
-        result = decode_lumen_llm(payload)
+        result = decode_ulmen_llm(payload)
         assert len(result) == 30
 
     def test_chunk_size_minimum_256(self):
         """chunk_size < 256 is clamped to 256."""
         recs = _records(5)
-        chunks = list(stream_encode_lumia(recs, chunk_size=1))
+        chunks = list(stream_encode_ulmen(recs, chunk_size=1))
         payload = _reassemble_str(chunks)
-        result = decode_lumen_llm(payload)
+        result = decode_ulmen_llm(payload)
         assert len(result) == 5
 
     def test_round_trip_data_integrity(self):
@@ -751,16 +751,16 @@ class TestStreamEncodeLumia:
             {"id": i, "active": i % 2 == 0, "score": float(i)}
             for i in range(15)
         ]
-        payload = _reassemble_str(stream_encode_lumia(recs))
-        result = decode_lumen_llm(payload)
+        payload = _reassemble_str(stream_encode_ulmen(recs))
+        result = decode_ulmen_llm(payload)
         assert len(result) == 15
         for i, r in enumerate(result):
             assert r["id"] == i
 
     def test_generator_input(self):
-        chunks = list(stream_encode_lumia({"id": i} for i in range(5)))
+        chunks = list(stream_encode_ulmen({"id": i} for i in range(5)))
         payload = _reassemble_str(chunks)
-        result = decode_lumen_llm(payload)
+        result = decode_ulmen_llm(payload)
         assert len(result) == 5
 
 
@@ -773,7 +773,7 @@ class TestStreamingIntegration:
 
     def test_boolean_column_round_trip(self):
         recs = [{"flag": i % 2 == 0} for i in range(20)]
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(recs)
         payload = _reassemble(enc.flush())
         result = decode_binary_records(payload)
@@ -783,7 +783,7 @@ class TestStreamingIntegration:
 
     def test_integer_delta_column_round_trip(self):
         recs = [{"id": i} for i in range(50)]
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(recs)
         payload = _reassemble(enc.flush())
         result = decode_binary_records(payload)
@@ -794,7 +794,7 @@ class TestStreamingIntegration:
     def test_string_pool_column_round_trip(self):
         depts = ["Engineering", "Marketing", "Sales"]
         recs = [{"dept": depts[i % 3]} for i in range(30)]
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(recs)
         payload = _reassemble(enc.flush())
         result = decode_binary_records(payload)
@@ -804,7 +804,7 @@ class TestStreamingIntegration:
 
     def test_null_values_preserved(self):
         recs = [{"v": None if i % 3 == 0 else i} for i in range(15)]
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(recs)
         payload = _reassemble(enc.flush())
         result = decode_binary_records(payload)
@@ -812,25 +812,25 @@ class TestStreamingIntegration:
 
     def test_mixed_types_round_trip(self):
         recs = _records(100)
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(recs)
         payload = _reassemble(enc.flush())
         result = decode_binary_records(payload)
         assert len(result) == 100
 
     def test_encoder_reuse_after_flush(self):
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         for batch in range(3):
             enc.feed_many(_records(10))
             payload = _reassemble(enc.flush())
             result = decode_binary_records(payload)
             assert len(result) == 10
 
-    def test_stream_encode_vs_lumen_stream_encoder(self):
-        """stream_encode and LumenStreamEncoder produce valid decodable output."""
+    def test_stream_encode_vs_ulmen_stream_encoder(self):
+        """stream_encode and UlmenStreamEncoder produce valid decodable output."""
         recs = _records(50)
         p1 = _reassemble(stream_encode(recs))
-        enc = LumenStreamEncoder()
+        enc = UlmenStreamEncoder()
         enc.feed_many(recs)
         p2 = _reassemble(enc.flush())
         r1 = decode_binary_records(p1)
@@ -855,19 +855,19 @@ class TestModuleLevelImports:
     """Lines 29-37: cover the import block and module-level flags."""
 
     def test_rust_stream_flag_is_bool(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         assert isinstance(_sm._RUST_STREAM, bool)
 
     def test_rust_encoder_attribute_exists(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         assert hasattr(_sm, "_RustStreamEncoder")
 
     def test_rust_chunked_attribute_exists(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         assert hasattr(_sm, "_rust_chunked")
 
     def test_rust_stream_matches_rust_available(self):
-        import lumen.core._streaming as _sm
+        import ulmen.core._streaming as _sm
         assert _sm._RUST_STREAM == RUST_AVAILABLE
 
     def test_import_fallback_when_rust_unavailable(self):
@@ -877,20 +877,20 @@ class TestModuleLevelImports:
         # Remove cached modules so reimport runs the try/except block fresh
         saved = {}
         for key in list(sys.modules):
-            if "lumen._lumen_rust" in key or key == "lumen.core._streaming":
+            if "ulmen._ulmen_rust" in key or key == "ulmen.core._streaming":
                 saved[key] = sys.modules.pop(key)
 
         # Block the Rust extension
-        sys.modules["lumen._lumen_rust"] = None  # type: ignore
+        sys.modules["ulmen._ulmen_rust"] = None  # type: ignore
 
         try:
-            import lumen.core._streaming as _sm_fresh
+            import ulmen.core._streaming as _sm_fresh
             assert _sm_fresh._RUST_STREAM is False
             assert _sm_fresh._RustStreamEncoder is None
             assert _sm_fresh._rust_chunked is None
         finally:
             # Restore everything
             for key in list(sys.modules):
-                if "lumen._lumen_rust" in key or key == "lumen.core._streaming":
+                if "ulmen._ulmen_rust" in key or key == "ulmen.core._streaming":
                     del sys.modules[key]
             sys.modules.update(saved)

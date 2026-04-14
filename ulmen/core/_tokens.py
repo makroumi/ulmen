@@ -1,12 +1,12 @@
 """
-LUMEN token counting — zero external dependencies.
+ULMEN token counting — zero external dependencies.
 
 count_tokens_exact implements a cl100k_base-compatible byte-pair
 approximation using only stdlib re. More accurate than len/4 but
 requires no external library.
 
 Accuracy on English prose: within ±8% of cl100k_base.
-Accuracy on LUMEN-AGENT payloads: within ±5% (ASCII-heavy).
+Accuracy on ULMEN-AGENT payloads: within ±5% (ASCII-heavy).
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ def count_tokens_exact(text: str) -> int:
 
 def count_tokens_exact_records(text: str, per_record_overhead: int = 3) -> int:
     """
-    Count tokens in a LUMEN-AGENT payload with per-record overhead.
+    Count tokens in a ULMEN-AGENT payload with per-record overhead.
 
     Parameters
     ----------

@@ -7,9 +7,9 @@ import time
 
 import pytest
 
-from lumen import RUST_AVAILABLE, LumenDictRust
-from lumen.core import LumenDict
 from tests.conftest import make_record
+from ulmen import RUST_AVAILABLE, UlmenDictRust
+from ulmen.core import UlmenDict
 
 
 def _timeit_ms(fn, n: int = 1) -> float:
@@ -31,22 +31,22 @@ def recs_1k():
 
 class TestSpeedSmoke:
     def test_python_text_encode_completes(self, recs_1k):
-        ld = LumenDict(recs_1k)
+        ld = UlmenDict(recs_1k)
         ms = _timeit_ms(ld.encode_text, n=3)
         assert ms < 10_000
 
     def test_python_binary_encode_completes(self, recs_1k):
-        ld = LumenDict(recs_1k)
+        ld = UlmenDict(recs_1k)
         ms = _timeit_ms(ld.encode_binary_pooled, n=3)
         assert ms < 10_000
 
     def test_rust_text_encode_completes(self, recs_1k):
-        ld = LumenDictRust(recs_1k)
+        ld = UlmenDictRust(recs_1k)
         ms = _timeit_ms(ld.encode_text, n=3)
         assert ms < 10_000
 
     def test_rust_binary_encode_completes(self, recs_1k):
-        ld = LumenDictRust(recs_1k)
+        ld = UlmenDictRust(recs_1k)
         ms = _timeit_ms(ld.encode_binary_pooled, n=3)
         assert ms < 10_000
 
@@ -54,6 +54,6 @@ class TestSpeedSmoke:
         """If Rust is compiled, it should be faster than Python."""
         if not RUST_AVAILABLE:
             pytest.skip('Rust extension not compiled')
-        py_ms = _timeit_ms(lambda: LumenDict(recs_1k).encode_text(), n=5)
-        rs_ms = _timeit_ms(lambda: LumenDictRust(recs_1k).encode_text(), n=5)
+        py_ms = _timeit_ms(lambda: UlmenDict(recs_1k).encode_text(), n=5)
+        rs_ms = _timeit_ms(lambda: UlmenDictRust(recs_1k).encode_text(), n=5)
         assert rs_ms < py_ms   # Rust must be faster

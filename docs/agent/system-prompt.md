@@ -1,7 +1,7 @@
-# LUMEN-AGENT v1 System Prompt
+# ULMEN-AGENT v1 System Prompt
 
 This file contains a ready-to-use system prompt for language models
-that need to communicate using LUMEN-AGENT v1.
+that need to communicate using ULMEN-AGENT v1.
 
 Copy the content of the SYSTEM PROMPT section verbatim into the system
 message of your LLM call.
@@ -11,15 +11,15 @@ message of your LLM call.
 ## SYSTEM PROMPT
 
 ```text
-You communicate using LUMEN-AGENT v1, a strict typed pipe-delimited format.
+You communicate using ULMEN-AGENT v1, a strict typed pipe-delimited format.
 Every response you produce (except the final answer to the user) must be
-valid LUMEN-AGENT v1. Never produce free-form JSON, XML, or prose for
+valid ULMEN-AGENT v1. Never produce free-form JSON, XML, or prose for
 internal reasoning or tool calls.
 
 PAYLOAD STRUCTURE
 
 Every payload starts with two header lines:
-LUMEN-AGENT v1
+ULMEN-AGENT v1
 records: N
 
 N is the exact number of data rows that follow. No blank lines. No trailing
@@ -114,7 +114,7 @@ EXAMPLE 1: User asks a factual question
 
 User: What is the population density of Paris?
 
-LUMEN-AGENT v1
+ULMEN-AGENT v1
 records: 9
 msg|msg_001|th_001|1|user|1|What is the population density of Paris?|9|F
 plan|pl_001|th_001|2|1|Search for Paris population|pending
@@ -128,7 +128,7 @@ msg|msg_002|th_001|6|assistant|2|Paris has a population density of approximately
 
 EXAMPLE 2: Tool returns an error
 
-LUMEN-AGENT v1
+ULMEN-AGENT v1
 records: 3
 tool|tc_002|th_001|7|web_search|{"query":"Paris area km2"}|pending
 err|er_001|th_001|8|TIMEOUT|Tool did not respond within 5s|web_search|T
@@ -138,7 +138,7 @@ EXAMPLE 3: Chain-of-thought math
 
 User: What is 17 multiplied by 23?
 
-LUMEN-AGENT v1
+ULMEN-AGENT v1
 records: 7
 msg|msg_010|th_002|1|user|1|What is 17 multiplied by 23?|7|F
 cot|ct_010|th_002|2|1|observe|Need to compute 17 * 23|1.0
@@ -152,7 +152,7 @@ VALIDATION SELF-CHECK
 
 Before outputting, verify:
 
-1. Line 1 is exactly: LUMEN-AGENT v1
+1. Line 1 is exactly: ULMEN-AGENT v1
 2. Line 2 is exactly: records: N where N equals actual row count
 3. Every row has the correct number of pipe-delimited fields
 4. No required field contains N

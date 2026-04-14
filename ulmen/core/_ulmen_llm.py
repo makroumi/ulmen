@@ -1,5 +1,5 @@
 """
-LUMEN LLM-native codec -- the human and agent readable text surface.
+ULMEN LLM-native codec -- the human and agent readable text surface.
 
 Design goals:
     Self-describing     every payload carries its schema in the header line
@@ -23,7 +23,7 @@ Type hint characters:
 import math
 from typing import Any
 
-LUMEN_LLM_MAGIC  = "L|"
+ULMEN_LLM_MAGIC  = "L|"
 _EMPTY_DICT_TOK  = "{}"
 _EMPTY_LIST_TOK  = "[]"
 _QUOTE_CHARS     = frozenset(',"\n\r{}[]|:')
@@ -134,11 +134,11 @@ def _type_char(v: Any) -> str:
 # Main encode entry point
 # ---------------------------------------------------------------------------
 
-def encode_lumen_llm(records: list) -> str:
+def encode_ulmen_llm(records: list) -> str:
     if not records:
-        return LUMEN_LLM_MAGIC
+        return ULMEN_LLM_MAGIC
     if type(records[0]) is not dict:
-        parts = [LUMEN_LLM_MAGIC]
+        parts = [ULMEN_LLM_MAGIC]
         for r in records:
             parts.append(_encode_val(r))
         return "\n".join(parts)
@@ -158,7 +158,7 @@ def _encode_dict_records(records: list) -> str:
                 seen.add(k)
 
     if not keys:
-        lines = [LUMEN_LLM_MAGIC + _EMPTY_DICT_TOK] + [_EMPTY_DICT_TOK] * n_rec
+        lines = [ULMEN_LLM_MAGIC + _EMPTY_DICT_TOK] + [_EMPTY_DICT_TOK] * n_rec
         return "\n".join(lines)
 
     n_keys = len(keys)
@@ -225,7 +225,7 @@ def _encode_dict_records(records: list) -> str:
 
     # Build header from final inferred types
     hparts = [_encode_val(keys[ci]) + ':' + col_type[ci] for ci in range(n_keys)]
-    lines[0] = LUMEN_LLM_MAGIC + ','.join(hparts)
+    lines[0] = ULMEN_LLM_MAGIC + ','.join(hparts)
 
     return '\n'.join(lines)
 
@@ -287,9 +287,9 @@ def _row_is_plain(row: str) -> bool:
 # Decode entry point
 # ---------------------------------------------------------------------------
 
-def decode_lumen_llm(text: str) -> list:
-    if not text or text[:2] != LUMEN_LLM_MAGIC:
-        raise ValueError("Not a LUMEN LLM payload: must start with 'L|'")
+def decode_ulmen_llm(text: str) -> list:
+    if not text or text[:2] != ULMEN_LLM_MAGIC:
+        raise ValueError("Not a ULMEN LLM payload: must start with 'L|'")
 
     needs_slow = '"' in text or '{' in text or '[' in text
     rows       = _split_rows_quoted(text) if needs_slow else text.split('\n')

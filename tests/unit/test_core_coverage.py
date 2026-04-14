@@ -1,11 +1,11 @@
 """
-Targeted branch-coverage tests for uncovered lines in lumen/core.py.
+Targeted branch-coverage tests for uncovered lines in ulmen/core.py.
 
 Each test class is labelled with the exact line numbers it targets.
-Sole purpose: drive lumen/core.py to 100% coverage.
+Sole purpose: drive ulmen/core.py to 100% coverage.
 """
 
-from lumen.core import (
+from ulmen.core import (
     # constants
     MAGIC,
     S_BITS,
@@ -21,7 +21,7 @@ from lumen.core import (
     T_STR_TINY,
     VERSION,
     # classes
-    LumenDict,
+    UlmenDict,
     decode_binary_records,
     decode_text_records,
     encode_binary_records,
@@ -163,7 +163,7 @@ class TestL703DecodeRle:
 
 def _matrix_payload(n_rows: int, col_name: str, strategy_byte: int,
                     col_data_bytes: bytes) -> bytes:
-    """Craft a minimal valid LUMEN binary with a single-column T_MATRIX."""
+    """Craft a minimal valid ULMEN binary with a single-column T_MATRIX."""
     out = bytearray()
     out += MAGIC
     out += VERSION
@@ -252,7 +252,7 @@ class TestL770MatrixColNoneFill:
 
 
 # ---------------------------------------------------------------------------
-# L848 — LumenDict.decode_binary wraps non-list scalar in a list
+# L848 — UlmenDict.decode_binary wraps non-list scalar in a list
 # ---------------------------------------------------------------------------
 
 class TestL848DecodeBinaryWrapsScalar:
@@ -262,10 +262,10 @@ class TestL848DecodeBinaryWrapsScalar:
         # encode a single integer (non-matrix, non-list) → decoder returns int
         raw = (MAGIC + VERSION +
                bytes([T_INT]) + encode_zigzag(42))
-        ld = LumenDict([])
+        ld = UlmenDict([])
         result = ld.decode_binary(raw)
-        # Result must be a LumenDict wrapping [42]
-        assert isinstance(result, LumenDict)
+        # Result must be a UlmenDict wrapping [42]
+        assert isinstance(result, UlmenDict)
         assert len(result) == 1
         assert result[0] == 42
 

@@ -1,5 +1,5 @@
 """
-LUMEN binary codec -- encoder and decoder for the compact binary format.
+ULMEN binary codec -- encoder and decoder for the compact binary format.
 
 Binary format layout:
 
@@ -22,7 +22,7 @@ Column encoding in T_MATRIX:
 import struct
 from typing import Any
 
-from lumen.core._constants import (
+from ulmen.core._constants import (
     MAGIC,
     S_BITS,
     S_DELTA,
@@ -44,7 +44,7 @@ from lumen.core._constants import (
     T_STR_TINY,
     VERSION,
 )
-from lumen.core._primitives import (
+from ulmen.core._primitives import (
     decode_varint,
     decode_zigzag,
     encode_varint,
@@ -60,7 +60,7 @@ from lumen.core._primitives import (
     unpack_bits,
     unpack_delta_raw,
 )
-from lumen.core._strategies import detect_column_strategy
+from ulmen.core._strategies import detect_column_strategy
 
 
 def _encode_value_binary(v: Any, pool_map: dict) -> bytes:
@@ -169,7 +169,7 @@ def encode_binary_records(
     use_strategies: bool = True,
 ) -> bytes:
     """
-    Encode a list of records to LUMEN binary format.
+    Encode a list of records to ULMEN binary format.
 
     Parameters
     ----------
@@ -203,14 +203,14 @@ def encode_binary_records(
 
 def decode_binary_records(data: bytes) -> list:
     """
-    Decode a LUMEN binary payload.
+    Decode a ULMEN binary payload.
 
     Always returns a list. Single-record payloads return a one-element list.
     T_MATRIX payloads return a list of dicts.
     Raises ValueError for bad magic or unknown tags.
     """
     if data[:4] != MAGIC:
-        raise ValueError("Not LUMEN binary (bad magic)")
+        raise ValueError("Not ULMEN binary (bad magic)")
 
     pos   = 6
     pool: list = []

@@ -1,9 +1,9 @@
 """
-Unit tests for lumen/core/_threading.py
+Unit tests for ulmen/core/_threading.py
 Target: 100% coverage of ThreadRegistry and merge_threads.
 """
-from lumen.core._agent import encode_agent_payload
-from lumen.core._threading import ThreadRegistry, merge_threads
+from ulmen.core._agent import encode_agent_payload
+from ulmen.core._threading import ThreadRegistry, merge_threads
 
 
 def _make_payload(records, thread_id="t1"):

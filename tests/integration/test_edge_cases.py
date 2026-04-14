@@ -3,8 +3,8 @@ Integration edge case tests: boundary values, special types, nulls, unicode,
 large/small record shapes.
 """
 
-from lumen import LumenDictRust
-from lumen.core import (
+from ulmen import UlmenDictRust
+from ulmen.core import (
     MAGIC,
     build_pool,
     decode_binary_records,
@@ -53,12 +53,12 @@ class TestEdgeCasesSingleRecord:
             assert result[0]['id'] == 1
 
     def test_single_rust_text(self):
-        ld = LumenDictRust([{'id': 1}])
+        ld = UlmenDictRust([{'id': 1}])
         text = ld.encode_text()
         assert '1' in text
 
     def test_single_rust_binary(self):
-        ld = LumenDictRust([{'id': 1}])
+        ld = UlmenDictRust([{'id': 1}])
         assert ld.encode_binary()[:4] == MAGIC
 
 

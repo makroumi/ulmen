@@ -82,7 +82,7 @@ jobs:
     needs: [build-wheels, build-sdist]
     environment:
       name: ${{ github.event.inputs.test_pypi == 'true' && 'test-pypi' || 'pypi' }}
-      url: ${{ github.event.inputs.test_pypi == 'true' && 'https://test.pypi.org/p/lumen' || 'https://pypi.org/p/lumen' }}
+      url: ${{ github.event.inputs.test_pypi == 'true' && 'https://test.pypi.org/p/ulmen' || 'https://pypi.org/p/ulmen' }}
     permissions:
       id-token: write
 

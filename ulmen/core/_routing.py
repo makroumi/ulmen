@@ -1,5 +1,5 @@
 """
-LUMEN-AGENT routing layer.
+ULMEN-AGENT routing layer.
 
 AgentRouter dispatches decoded records to registered handler callables
 based on the (from_agent, to_agent) pair declared in meta fields.

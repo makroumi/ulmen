@@ -16,17 +16,17 @@ Clone the repository and install in editable mode. No Rust required.
 The pure Python reference implementation has zero runtime dependencies.
 
 ```bash
-git clone https://github.com/makroumi/lumen
-cd lumen
+git clone https://github.com/makroumi/ulmen
+cd ulmen
 pip install -e .
 ```
 
 Verify:
 
 ```Python
-import lumen
-print(lumen.__version__)   # 1.0.0
-print(lumen.RUST_AVAILABLE)  # False
+import ulmen
+print(ulmen.__version__)   # 1.0.0
+print(ulmen.RUST_AVAILABLE)  # False
 ```
 
 ## With Rust Acceleration
@@ -55,9 +55,9 @@ during Rust development when compile speed matters more than runtime speed.
 
 ### Verify the Rust extension loaded
 ```Python
-import lumen
-print(lumen.RUST_AVAILABLE)   # True
-print(lumen.LumenDictRust)    # <class 'lumen._lumen_rust.LumenDictRust'>
+import ulmen
+print(ulmen.RUST_AVAILABLE)   # True
+print(ulmen.UlmenDictRust)    # <class 'ulmen._ulmen_rust.UlmenDictRust'>
 ```
 
 ---
@@ -79,11 +79,11 @@ automatically falls back to the pure Python implementation. The API
 is identical. No code changes required.
 
 ```Python
-from lumen import RUST_AVAILABLE, LumenDictRust
+from ulmen import RUST_AVAILABLE, UlmenDictRust
 
-# LumenDictRust is always importable.
+# UlmenDictRust is always importable.
 # When Rust is unavailable it is a Python shim with the same interface.
-ld = LumenDictRust(records)
+ld = UlmenDictRust(records)
 ```
 ---
 

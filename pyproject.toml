@@ -3,9 +3,9 @@ requires      = ["maturin>=1.4,<2.0"]
 build-backend = "maturin"
 
 [project]
-name        = "lumen"
+name        = "ulmen"
 version     = "1.0.0"
-description = "LUMEN: The number one serialization format across size, tokens, speed, and memory"
+description = "ULMEN: The number one serialization format across size, tokens, speed, and memory"
 readme      = "README.md"
 license     = { text = "Apache-2.0" }
 requires-python = ">=3.8"
@@ -36,13 +36,13 @@ dev = [
 ]
 
 [project.urls]
-Homepage   = "https://github.com/makroumi/lumen"
-Repository = "https://github.com/makroumi/lumen"
-Issues     = "https://github.com/makroumi/lumen/issues"
+Homepage   = "https://github.com/makroumi/ulmen"
+Repository = "https://github.com/makroumi/ulmen"
+Issues     = "https://github.com/makroumi/ulmen/issues"
 
 [tool.maturin]
 python-source = "."
-module-name   = "lumen._lumen_rust"
+module-name   = "ulmen._ulmen_rust"
 features      = ["pyo3/extension-module"]
 exclude       = [
     "*.csv",
@@ -58,7 +58,7 @@ testpaths = ["tests"]
 addopts   = "-v --tb=short"
 
 [tool.coverage.run]
-source = ["lumen"]
+source = ["ulmen"]
 omit   = ["tests/*"]
 
 [tool.coverage.report]

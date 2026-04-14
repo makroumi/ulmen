@@ -1,18 +1,18 @@
 """
-Shared fixtures and test helpers for the Lumen test suite.
+Shared fixtures and test helpers for the Ulmen test suite.
 """
 import json
 import pickle
 
 import pytest
 
-from lumen import (
-    LumenDictFullRust,
-    LumenDictRust,
+from ulmen import (
+    UlmenDictFullRust,
+    UlmenDictRust,
 )
-from lumen.core import (
-    LumenDict,
-    LumenDictFull,
+from ulmen.core import (
+    UlmenDict,
+    UlmenDictFull,
 )
 
 # ---------------------------------------------------------------------------
@@ -37,11 +37,11 @@ class WeirdStr:
 
 class RustShim:
     """
-    Minimal shim that mimics the LumenDictRust interface using pure Python.
+    Minimal shim that mimics the UlmenDictRust interface using pure Python.
     Used to test Rust-layer contracts without requiring the Rust extension.
     """
     def __init__(self, data=None):
-        self._inner = LumenDict(data or [])
+        self._inner = UlmenDict(data or [])
 
     def encode_binary_pooled_raw(self) -> bytes:
         return self._inner.encode_binary_pooled()
@@ -170,22 +170,22 @@ def sample_records():
 
 @pytest.fixture
 def py_ld(benchmark_records):
-    return LumenDict(benchmark_records)
+    return UlmenDict(benchmark_records)
 
 
 @pytest.fixture
 def py_ldf(benchmark_records):
-    return LumenDictFull(benchmark_records)
+    return UlmenDictFull(benchmark_records)
 
 
 @pytest.fixture
 def rs_ld(benchmark_records):
-    return LumenDictRust(benchmark_records)
+    return UlmenDictRust(benchmark_records)
 
 
 @pytest.fixture
 def rs_ldf(benchmark_records):
-    return LumenDictFullRust(benchmark_records)
+    return UlmenDictFullRust(benchmark_records)
 
 
 @pytest.fixture
@@ -203,13 +203,13 @@ def sample_5():
 # ---------------------------------------------------------------------------
 
 def py_text(records):
-    return LumenDict(records).encode_text()
+    return UlmenDict(records).encode_text()
 
 def rust_text(records):
-    return LumenDictRust(records).encode_text()
+    return UlmenDictRust(records).encode_text()
 
 def py_bin(records):
-    return LumenDict(records).encode_binary_pooled()
+    return UlmenDict(records).encode_binary_pooled()
 
 def rust_bin(records):
-    return LumenDictRust(records).encode_binary_pooled()
+    return UlmenDictRust(records).encode_binary_pooled()

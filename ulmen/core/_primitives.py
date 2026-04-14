@@ -21,7 +21,7 @@ Encoding atoms (in dependency order):
 import struct
 from typing import Tuple
 
-from lumen.core._constants import (
+from ulmen.core._constants import (
     T_BITS,
     T_BOOL,
     T_DELTA_RAW,

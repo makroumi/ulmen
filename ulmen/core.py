@@ -1,16 +1,16 @@
 """
-Backward-compatibility shim for lumen.core.
+Backward-compatibility shim for ulmen.core.
 
-The implementation has been split into the lumen/core/ package.
+The implementation has been split into the ulmen/core/ package.
 This module re-exports everything so that existing imports of the form
 
-    from lumen.core import LumenDict, encode_varint, ...
+    from ulmen.core import UlmenDict, encode_varint, ...
 
 continue to work without modification.
 """
 
-from lumen.core import *  # noqa: F401, F403
-from lumen.core import (  # noqa: F401
+from ulmen.core import *  # noqa: F401, F403
+from ulmen.core import (  # noqa: F401
     MAGIC,
     S_BITS,
     S_DELTA,
@@ -33,8 +33,8 @@ from lumen.core import (  # noqa: F401
     T_STR_TINY,
     T_STRATEGY,
     VERSION,
-    LumenDict,
-    LumenDictFull,
+    UlmenDict,
+    UlmenDictFull,
     __edition__,
     __version__,
     _encode_obj_iterative_text,

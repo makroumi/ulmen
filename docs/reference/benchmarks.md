@@ -20,12 +20,12 @@ pytest tests/perf/test_benchmark.py -v -s
 | JSON | 145,664 | 100.0% |
 | Pickle protocol 4 | 62,177 | 42.7% |
 | CSV | 61,717 | 42.4% |
-| LUMIA text | 57,403 | 39.4% |
-| LUMEN text | 46,779 | 32.1% |
-| LUMEN binary | 32,701 | 22.4% |
-| LUMEN binary full pool | 32,701 | 22.4% |
-| LUMEN zlib-6 | 2,453 | 1.7% |
-| LUMEN zlib-9 | 2,450 | 1.7% |
+| ULMEN text | 57,403 | 39.4% |
+| ULMEN text | 46,779 | 32.1% |
+| ULMEN binary | 32,701 | 22.4% |
+| ULMEN binary full pool | 32,701 | 22.4% |
+| ULMEN zlib-6 | 2,453 | 1.7% |
+| ULMEN zlib-9 | 2,450 | 1.7% |
 
 Python and Rust produce byte-identical output.
 
@@ -37,14 +37,14 @@ Python and Rust produce byte-identical output.
 |---|---|---|
 | JSON | 1.264 | 1.849 |
 | Pickle protocol 4 | 0.369 | 0.497 |
-| LUMEN text (Python) | 12.005 | n/a |
-| LUMEN binary (Python) | 13.579 | 0.479 |
-| LUMEN zlib-6 (Python) | 13.693 | n/a |
-| LUMIA (Python) | 1.511 | 0.833 |
-| LUMEN text (Rust) | 1.018 | n/a |
-| LUMEN binary (Rust) | 1.013 | 0.475 |
-| LUMEN zlib-6 (Rust) | 1.243 | n/a |
-| LUMIA (Rust) | 3.497 | 0.830 |
+| ULMEN text (Python) | 12.005 | n/a |
+| ULMEN binary (Python) | 13.579 | 0.479 |
+| ULMEN zlib-6 (Python) | 13.693 | n/a |
+| ULMEN (Python) | 1.511 | 0.833 |
+| ULMEN text (Rust) | 1.018 | n/a |
+| ULMEN binary (Rust) | 1.013 | 0.475 |
+| ULMEN zlib-6 (Rust) | 1.243 | n/a |
+| ULMEN (Rust) | 3.497 | 0.830 |
 
 ---
 
@@ -56,21 +56,21 @@ Python and Rust produce byte-identical output.
 | Binary encode | 13.4x |
 | Text encode | 11.8x |
 
-**LUMEN binary (Rust) vs JSON**
+**ULMEN binary (Rust) vs JSON**
 
-LUMEN binary encodes in 1.013 ms vs JSON at 1.264 ms -- comparable speed
+ULMEN binary encodes in 1.013 ms vs JSON at 1.264 ms -- comparable speed
 while producing output that is 4.5x smaller.
 
 **Zlib headroom**
 
-LUMEN binary is already highly compressed by pool and strategies.
+ULMEN binary is already highly compressed by pool and strategies.
 Zlib adds only marginal additional reduction from 32,701 to 2,453 bytes.
 The large gap (22.4% to 1.7%) shows the binary format retains repetition
 that zlib can exploit, primarily from numeric patterns.
 
-**LUMIA vs JSON**
+**ULMEN vs JSON**
 
-LUMIA encodes in 1.511 ms (Python) with 39.4% of JSON size and 43% of
+ULMEN encodes in 1.511 ms (Python) with 39.4% of JSON size and 43% of
 JSON token count, making it suitable for LLM context where token budget
 matters more than byte count.
 
@@ -90,7 +90,7 @@ The CSV size here is for the flat string representation only.
 
 Streaming surfaces never materialise the full payload before the first byte
 is emitted. Wire format is identical to batch encode — every chunk is a valid
-independently-decodable LUMEN binary payload.
+independently-decodable ULMEN binary payload.
 
 Machine: x86_64 Linux, Python 3.12.13, rustc 1.92.0
 Dataset: mixed-type records (int, float, str, bool), median 50 runs (1k) / 10 runs (10k)

@@ -1,11 +1,11 @@
 """
-Tests for lumen.core._agent — 100% coverage target.
+Tests for ulmen.core._agent — 100% coverage target.
 """
 import math
 
 import pytest
 
-from lumen.core._agent import (
+from ulmen.core._agent import (
     AGENT_MAGIC,
     AGENT_VERSION,
     COMPRESS_COMPLETED_SEQUENCES,
@@ -33,8 +33,8 @@ from lumen.core._agent import (
     build_summary_chain,
     chunk_payload,
     compress_context,
-    convert_agent_to_lumia,
-    convert_lumia_to_agent,
+    convert_agent_to_ulmen,
+    convert_ulmen_to_agent,
     decode_agent_payload,
     decode_agent_payload_full,
     decode_agent_record,
@@ -313,7 +313,7 @@ class TestPayload:
 
     def test_encode_header(self):
         enc = encode_agent_payload(self._base())
-        assert enc.startswith("LUMEN-AGENT v1\nrecords: 1\n")
+        assert enc.startswith("ULMEN-AGENT v1\nrecords: 1\n")
 
     def test_encode_ends_newline(self):
         enc = encode_agent_payload(self._base())
@@ -333,32 +333,32 @@ class TestPayload:
 
     def test_too_short_raises(self):
         with pytest.raises(ValueError, match="too short"):
-            decode_agent_payload("LUMEN-AGENT v1\n")
+            decode_agent_payload("ULMEN-AGENT v1\n")
 
     def test_bad_magic_raises(self):
         with pytest.raises(ValueError, match="Bad magic"):
-            decode_agent_payload("LUMEN-AGENT v2\nrecords: 0\n")
+            decode_agent_payload("ULMEN-AGENT v2\nrecords: 0\n")
 
     def test_bad_records_line_raises(self):
         with pytest.raises(ValueError, match="records: not found"):
-            decode_agent_payload("LUMEN-AGENT v1\nfoo\n")
+            decode_agent_payload("ULMEN-AGENT v1\nfoo\n")
 
     def test_bad_record_count_raises(self):
         with pytest.raises(ValueError, match="Bad record count"):
-            decode_agent_payload("LUMEN-AGENT v1\nrecords: abc\n")
+            decode_agent_payload("ULMEN-AGENT v1\nrecords: abc\n")
 
     def test_count_mismatch_raises(self):
         with pytest.raises(ValueError, match="mismatch"):
-            decode_agent_payload("LUMEN-AGENT v1\nrecords: 5\nmsg|m1|t1|1|user|1|hi|1|F\n")
+            decode_agent_payload("ULMEN-AGENT v1\nrecords: 5\nmsg|m1|t1|1|user|1|hi|1|F\n")
 
     def test_blank_data_line_raises(self):
         # trailing blank lines are stripped, so count mismatch is the error
         with pytest.raises(ValueError, match="mismatch"):
-            decode_agent_payload("LUMEN-AGENT v1\nrecords: 2\nmsg|m1|t1|1|user|1|hi|1|F\n\n")
+            decode_agent_payload("ULMEN-AGENT v1\nrecords: 2\nmsg|m1|t1|1|user|1|hi|1|F\n\n")
 
     def test_row_error_wrapped(self):
         with pytest.raises(ValueError, match="Row 1"):
-            decode_agent_payload("LUMEN-AGENT v1\nrecords: 1\nfoo|x|t1|1|data\n")
+            decode_agent_payload("ULMEN-AGENT v1\nrecords: 1\nfoo|x|t1|1|data\n")
 
 
 # ---------------------------------------------------------------------------
@@ -383,26 +383,26 @@ class TestValidate:
         assert m != ""
 
     def test_empty_thread_id(self):
-        payload = "LUMEN-AGENT v1\nrecords: 1\nmsg|m1||1|user|1|hi|1|F\n"
+        payload = "ULMEN-AGENT v1\nrecords: 1\nmsg|m1||1|user|1|hi|1|F\n"
         v, m = validate_agent_payload(payload)
         assert v is False
         assert "thread_id" in m
 
     def test_empty_id(self):
-        payload = "LUMEN-AGENT v1\nrecords: 1\nmsg||t1|1|user|1|hi|1|F\n"
+        payload = "ULMEN-AGENT v1\nrecords: 1\nmsg||t1|1|user|1|hi|1|F\n"
         v, m = validate_agent_payload(payload)
         assert v is False
         assert "id" in m
 
     def test_zero_step(self):
-        payload = "LUMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|0|user|1|hi|1|F\n"
+        payload = "ULMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|0|user|1|hi|1|F\n"
         v, m = validate_agent_payload(payload)
         assert v is False
         assert "step" in m
 
     def test_backwards_step(self):
         payload = (
-            "LUMEN-AGENT v1\nrecords: 2\n"
+            "ULMEN-AGENT v1\nrecords: 2\n"
             "msg|m1|t1|5|user|1|hi|1|F\n"
             "msg|m2|t1|3|assistant|2|bye|1|F\n"
         )
@@ -412,7 +412,7 @@ class TestValidate:
 
     def test_same_step_allowed(self):
         payload = (
-            "LUMEN-AGENT v1\nrecords: 2\n"
+            "ULMEN-AGENT v1\nrecords: 2\n"
             "plan|p1|t1|2|1|do a|pending\n"
             "plan|p2|t1|2|2|do b|pending\n"
         )
@@ -420,30 +420,30 @@ class TestValidate:
         assert v is True
 
     def test_res_without_tool(self):
-        payload = "LUMEN-AGENT v1\nrecords: 1\nres|tc_ghost|t1|1|search|data|done|100\n"
+        payload = "ULMEN-AGENT v1\nrecords: 1\nres|tc_ghost|t1|1|search|data|done|100\n"
         v, m = validate_agent_payload(payload)
         assert v is False
         assert "no matching tool" in m
 
     def test_bad_enum_role(self):
-        payload = "LUMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|robot|1|hi|1|F\n"
+        payload = "ULMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|robot|1|hi|1|F\n"
         v, m = validate_agent_payload(payload)
         assert v is False
         assert "role" in m
 
     def test_bad_enum_tool_status(self):
-        payload = "LUMEN-AGENT v1\nrecords: 1\ntool|t1|t1|1|search|{}|flying\n"
+        payload = "ULMEN-AGENT v1\nrecords: 1\ntool|t1|t1|1|search|{}|flying\n"
         v, m = validate_agent_payload(payload)
         assert v is False
 
     def test_bad_enum_cot_type(self):
-        payload = "LUMEN-AGENT v1\nrecords: 1\ncot|c1|t1|1|1|dream|thinking|1.0\n"
+        payload = "ULMEN-AGENT v1\nrecords: 1\ncot|c1|t1|1|1|dream|thinking|1.0\n"
         v, m = validate_agent_payload(payload)
         assert v is False
 
     def test_multi_thread_independent(self):
         payload = (
-            "LUMEN-AGENT v1\nrecords: 4\n"
+            "ULMEN-AGENT v1\nrecords: 4\n"
             "msg|m1|th_A|1|user|1|hi|1|F\n"
             "msg|m2|th_B|1|user|1|hi|1|F\n"
             "msg|m3|th_A|2|assistant|2|bye|1|F\n"
@@ -453,13 +453,13 @@ class TestValidate:
         assert v is True
 
     def test_null_required_field(self):
-        payload = "LUMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|N|1|hi|1|F\n"
+        payload = "ULMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|N|1|hi|1|F\n"
         v, m = validate_agent_payload(payload)
         assert v is False
 
     def test_res_matches_tool(self):
         payload = (
-            "LUMEN-AGENT v1\nrecords: 2\n"
+            "ULMEN-AGENT v1\nrecords: 2\n"
             "tool|tc1|t1|1|search|{}|pending\n"
             "res|tc1|t1|2|search|result|done|100\n"
         )
@@ -571,7 +571,7 @@ class TestExtractSubgraphPayload:
 
 class TestConstants:
     def test_agent_magic(self):
-        assert AGENT_MAGIC == "LUMEN-AGENT v1"
+        assert AGENT_MAGIC == "ULMEN-AGENT v1"
 
     def test_agent_version(self):
         assert AGENT_VERSION == "1.0.0"
@@ -599,7 +599,7 @@ class TestConstants:
 class TestMissingCoverage:
     def test_trailing_pipe_in_row(self):
         # covers _split_row line: fields.append("") when i == n after pipe
-        from lumen.core._agent import _split_row
+        from ulmen.core._agent import _split_row
         result = _split_row("a|b|")
         assert result[-1] == ""
 
@@ -612,81 +612,81 @@ class TestMissingCoverage:
     def test_blank_line_inside_data(self):
         # blank line inside (not trailing) — count mismatch since strip removes trailing
         # to hit the blank-line check we need it in the middle
-        payload = "LUMEN-AGENT v1\nrecords: 3\nmsg|m1|t1|1|user|1|hi|1|F\n\nmsg|m2|t1|2|assistant|2|bye|1|F\n"
+        payload = "ULMEN-AGENT v1\nrecords: 3\nmsg|m1|t1|1|user|1|hi|1|F\n\nmsg|m2|t1|2|assistant|2|bye|1|F\n"
         with pytest.raises(ValueError):
             decode_agent_payload(payload)
 
-    def test_encode_lumen_llm_via_lumendict(self):
-        # covers _api.py encode_lumen_llm cache path
-        from lumen.core._api import LumenDict
-        ld = LumenDict([{"id": 1, "name": "Alice"}])
-        result = ld.encode_lumen_llm()
+    def test_encode_ulmen_llm_via_ulmendict(self):
+        # covers _api.py encode_ulmen_llm cache path
+        from ulmen.core._api import UlmenDict
+        ld = UlmenDict([{"id": 1, "name": "Alice"}])
+        result = ld.encode_ulmen_llm()
         assert result.startswith("L|")
         # second call hits cache
-        result2 = ld.encode_lumen_llm()
+        result2 = ld.encode_ulmen_llm()
         assert result == result2
 
-    def test_decode_text_via_lumendict(self):
+    def test_decode_text_via_ulmendict(self):
         # covers _api.py decode_text
-        from lumen.core._api import LumenDict
-        ld = LumenDict([{"id": 1, "name": "Alice"}])
+        from ulmen.core._api import UlmenDict
+        ld = UlmenDict([{"id": 1, "name": "Alice"}])
         text = ld.encode_text()
         decoded = ld.decode_text(text)
         assert len(decoded) == 1
 
-    def test_decode_binary_via_lumendict(self):
+    def test_decode_binary_via_ulmendict(self):
         # covers _api.py decode_binary
-        from lumen.core._api import LumenDict
-        ld = LumenDict([{"id": 1, "name": "Alice"}])
+        from ulmen.core._api import UlmenDict
+        ld = UlmenDict([{"id": 1, "name": "Alice"}])
         binary = ld.encode_binary_pooled()
         decoded = ld.decode_binary(binary)
         assert len(decoded) == 1
 
-    def test_decode_lumen_llm_via_lumendict(self):
-        # covers _api.py decode_lumen_llm method
-        from lumen.core._api import LumenDict
-        ld = LumenDict([{"id": 1, "name": "Alice"}])
-        llm = ld.encode_lumen_llm()
-        decoded = ld.decode_lumen_llm(llm)
+    def test_decode_ulmen_llm_via_ulmendict(self):
+        # covers _api.py decode_ulmen_llm method
+        from ulmen.core._api import UlmenDict
+        ld = UlmenDict([{"id": 1, "name": "Alice"}])
+        llm = ld.encode_ulmen_llm()
+        decoded = ld.decode_ulmen_llm(llm)
         assert len(decoded) == 1
         assert decoded[0]["id"] == 1
 
-    def test_lumendictfull_init_dict(self):
-        # covers LumenDictFull init with dict input
-        from lumen.core._api import LumenDictFull
-        ldf = LumenDictFull({"id": 1, "name": "Alice"})
+    def test_ulmendictfull_init_dict(self):
+        # covers UlmenDictFull init with dict input
+        from ulmen.core._api import UlmenDictFull
+        ldf = UlmenDictFull({"id": 1, "name": "Alice"})
         assert len(ldf) == 1
 
-    def test_lumendictfull_init_iterable(self):
-        # covers LumenDictFull init with iterable input
-        from lumen.core._api import LumenDictFull
-        ldf = LumenDictFull(iter([{"id": 1}, {"id": 2}]))
+    def test_ulmendictfull_init_iterable(self):
+        # covers UlmenDictFull init with iterable input
+        from ulmen.core._api import UlmenDictFull
+        ldf = UlmenDictFull(iter([{"id": 1}, {"id": 2}]))
         assert len(ldf) == 2
 
-    def test_lumendictfull_append(self):
-        # covers LumenDictFull append
-        from lumen.core._api import LumenDictFull
-        ldf = LumenDictFull([{"id": 1}])
+    def test_ulmendictfull_append(self):
+        # covers UlmenDictFull append
+        from ulmen.core._api import UlmenDictFull
+        ldf = UlmenDictFull([{"id": 1}])
         ldf.append({"id": 2})
         assert len(ldf) == 2
 
-    def test_encode_lumen_llm_direct(self):
-        # covers _api.py encode_lumen_llm_direct
-        from lumen.core._api import encode_lumen_llm_direct
-        result = encode_lumen_llm_direct([{"id": 1}])
+    def test_encode_ulmen_llm_direct(self):
+        # covers _api.py encode_ulmen_llm_direct
+        from ulmen.core._api import encode_ulmen_llm_direct
+        result = encode_ulmen_llm_direct([{"id": 1}])
         assert result.startswith("L|")
 
-    def test_decode_lumen_llm_direct(self):
-        # covers _api.py decode_lumen_llm_direct
-        from lumen.core._api import decode_lumen_llm_direct
-        result = decode_lumen_llm_direct("L|id:d\n1")
+    def test_decode_ulmen_llm_direct(self):
+        # covers _api.py decode_ulmen_llm_direct
+        from ulmen.core._api import decode_ulmen_llm_direct
+        result = decode_ulmen_llm_direct("L|id:d\n1")
         assert result == [{"id": 1}]
 
 
 class TestFinalCoverage:
     def test_split_row_trailing_pipe_appends_empty(self):
         # agent line 188: fields.append("") when row ends with pipe
-        from lumen.core._agent import _split_row
+        from ulmen.core._agent import _split_row
         result = _split_row("a|b|c|")
         assert result[-1] == ""
         assert len(result) == 4
@@ -695,7 +695,7 @@ class TestFinalCoverage:
         # agent line 229: if not fields -> ValueError("Empty row")
         # _split_row("") returns [""] which is truthy but rtype="" not in _SCHEMAS
         # We need to patch to get truly empty list — test via empty string edge
-        from lumen.core._agent import decode_agent_record
+        from ulmen.core._agent import decode_agent_record
         # An all-pipe row that produces empty first field
         with pytest.raises(ValueError):
             decode_agent_record("")
@@ -704,14 +704,14 @@ class TestFinalCoverage:
 class TestLine188Coverage:
     def test_split_row_ends_with_pipe_non_quoted(self):
         # Directly hits line 188: fields.append("") when i==n after pipe increment
-        from lumen.core._agent import _split_row
+        from ulmen.core._agent import _split_row
         # non-quoted path: "a|b|" -> j found at 3, fields=['a','b'], i=4, n=4, i==n -> ""
         result = _split_row("type|id|")
         assert result == ["type", "id", ""]
         assert result[-1] == ""
 
     def test_split_row_single_field_trailing_pipe(self):
-        from lumen.core._agent import _split_row
+        from ulmen.core._agent import _split_row
         result = _split_row("only|")
         assert result == ["only", ""]
 
@@ -737,7 +737,7 @@ class TestContextBudgetExceededError:
         assert "100" in msg
 
     def test_enforce_budget_raises_when_over(self):
-        from lumen.core._agent import ContextBudgetExceededError, encode_agent_payload
+        from ulmen.core._agent import ContextBudgetExceededError, encode_agent_payload
         records = [
             {"type": "msg", "id": f"m{i}", "thread_id": "t1", "step": i + 1,
              "role": "user", "turn": i + 1, "content": "hello world long content",
@@ -765,7 +765,7 @@ class TestContextBudgetExceededError:
             auto_context=True,
             enforce_budget=False,
         )
-        assert "LUMEN-AGENT v1" in result
+        assert "ULMEN-AGENT v1" in result
 
 
 class TestAgentHeaderEncodeLines:
@@ -814,7 +814,7 @@ class TestParseHeaderAllBranches:
 
     def test_payload_id_parsed(self):
         payload = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "payload_id: uuid-123\n"
             "records: 0\n"
         )
@@ -823,7 +823,7 @@ class TestParseHeaderAllBranches:
 
     def test_parent_payload_id_parsed(self):
         payload = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "parent_payload_id: prev-uuid\n"
             "records: 0\n"
         )
@@ -832,7 +832,7 @@ class TestParseHeaderAllBranches:
 
     def test_agent_id_parsed(self):
         payload = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "agent_id: agent-alpha\n"
             "records: 0\n"
         )
@@ -841,7 +841,7 @@ class TestParseHeaderAllBranches:
 
     def test_session_id_parsed(self):
         payload = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "session_id: sess-999\n"
             "records: 0\n"
         )
@@ -850,7 +850,7 @@ class TestParseHeaderAllBranches:
 
     def test_schema_version_parsed(self):
         payload = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "schema_version: 2.0.0\n"
             "records: 0\n"
         )
@@ -858,23 +858,23 @@ class TestParseHeaderAllBranches:
         assert header.schema_version == "2.0.0"
 
     def test_bad_context_window_raises(self):
-        payload = "LUMEN-AGENT v1\ncontext_window: abc\nrecords: 0\n"
+        payload = "ULMEN-AGENT v1\ncontext_window: abc\nrecords: 0\n"
         with pytest.raises(ValueError, match="Bad context_window"):
             decode_agent_payload_full(payload)
 
     def test_bad_context_used_raises(self):
-        payload = "LUMEN-AGENT v1\ncontext_used: xyz\nrecords: 0\n"
+        payload = "ULMEN-AGENT v1\ncontext_used: xyz\nrecords: 0\n"
         with pytest.raises(ValueError, match="Bad context_used"):
             decode_agent_payload_full(payload)
 
     def test_unknown_meta_field_raises(self):
-        payload = "LUMEN-AGENT v1\nmeta: not_a_real_field\nrecords: 0\n"
+        payload = "ULMEN-AGENT v1\nmeta: not_a_real_field\nrecords: 0\n"
         with pytest.raises(ValueError, match="Unknown meta fields"):
             decode_agent_payload_full(payload)
 
     def test_forward_compat_unknown_header_line_ignored(self):
         payload = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "future_extension: some_value\n"
             "records: 1\n"
             "msg|m1|t1|1|user|1|hi|1|F\n"
@@ -884,7 +884,7 @@ class TestParseHeaderAllBranches:
 
     def test_all_header_fields_together(self):
         payload = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "thread: t1\n"
             "context_window: 8000\n"
             "context_used: 10\n"
@@ -1008,13 +1008,13 @@ class TestValidateStructuredMode:
         assert err is None
 
     def test_structured_empty_thread_returns_validation_error(self):
-        payload = "LUMEN-AGENT v1\nrecords: 1\nmsg||t1|1|user|1|hi|1|F\n"
+        payload = "ULMEN-AGENT v1\nrecords: 1\nmsg||t1|1|user|1|hi|1|F\n"
         ok, err = validate_agent_payload(payload, structured=True)
         assert ok is False
         assert isinstance(err, ValidationError)
 
     def test_structured_bad_step_returns_validation_error(self):
-        payload = "LUMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|0|user|1|hi|1|F\n"
+        payload = "ULMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|0|user|1|hi|1|F\n"
         ok, err = validate_agent_payload(payload, structured=True)
         assert ok is False
         assert isinstance(err, ValidationError)
@@ -1022,7 +1022,7 @@ class TestValidateStructuredMode:
 
     def test_structured_backwards_step_returns_validation_error(self):
         payload = (
-            "LUMEN-AGENT v1\nrecords: 2\n"
+            "ULMEN-AGENT v1\nrecords: 2\n"
             "msg|m1|t1|5|user|1|hi|1|F\n"
             "msg|m2|t1|3|assistant|2|bye|1|F\n"
         )
@@ -1031,20 +1031,20 @@ class TestValidateStructuredMode:
         assert isinstance(err, ValidationError)
 
     def test_structured_bad_enum_returns_validation_error(self):
-        payload = "LUMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|robot|1|hi|1|F\n"
+        payload = "ULMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|robot|1|hi|1|F\n"
         ok, err = validate_agent_payload(payload, structured=True)
         assert ok is False
         assert isinstance(err, ValidationError)
 
     def test_structured_res_without_tool_returns_validation_error(self):
-        payload = "LUMEN-AGENT v1\nrecords: 1\nres|ghost|t1|1|search|data|done|100\n"
+        payload = "ULMEN-AGENT v1\nrecords: 1\nres|ghost|t1|1|search|data|done|100\n"
         ok, err = validate_agent_payload(payload, structured=True)
         assert ok is False
         assert isinstance(err, ValidationError)
         assert "no matching tool" in err.message
 
     def test_structured_empty_id_returns_validation_error(self):
-        payload = "LUMEN-AGENT v1\nrecords: 1\nmsg|m1||1|user|1|hi|1|F\n"
+        payload = "ULMEN-AGENT v1\nrecords: 1\nmsg|m1||1|user|1|hi|1|F\n"
         ok, err = validate_agent_payload(payload, structured=True)
         assert ok is False
         assert isinstance(err, ValidationError)
@@ -1085,7 +1085,7 @@ class TestDecodeAgentStream:
 
     def test_stream_unknown_header_line_ignored(self):
         payload = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "future_header: value\n"
             "records: 1\n"
             "msg|m1|t1|1|user|1|hi|1|F\n"
@@ -1095,7 +1095,7 @@ class TestDecodeAgentStream:
 
     def test_stream_bad_data_row_raises(self):
         payload = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 1\n"
             "badtype|x|t1|1|data\n"
         )
@@ -1358,7 +1358,7 @@ class TestBuildSummaryChain:
         records = [self._msg(f"m{i}", "t1", i + 1) for i in range(30)]
         chain = build_summary_chain(records, token_budget=60, thread_id="t1")
         for payload in chain:
-            assert "LUMEN-AGENT v1" in payload
+            assert "ULMEN-AGENT v1" in payload
 
 
 class TestCompressContext:
@@ -1522,20 +1522,20 @@ class TestCompressCompletedSequences:
         }
 
     def test_completed_pair_becomes_mem(self):
-        from lumen.core._agent import PRIORITY_KEEP_IF_ROOM
+        from ulmen.core._agent import PRIORITY_KEEP_IF_ROOM
         records = [self._tool("tc1", "t1", 1), self._res("tc1", "t1", 2)]
         result = _compress_completed_sequences(records, PRIORITY_KEEP_IF_ROOM)
         assert any(r["type"] == "mem" for r in result)
         assert not any(r["type"] in ("tool", "res") for r in result)
 
     def test_incomplete_tool_not_compressed(self):
-        from lumen.core._agent import PRIORITY_KEEP_IF_ROOM
+        from ulmen.core._agent import PRIORITY_KEEP_IF_ROOM
         records = [self._tool("tc1", "t1", 1)]
         result = _compress_completed_sequences(records, PRIORITY_KEEP_IF_ROOM)
         assert any(r["type"] == "tool" for r in result)
 
     def test_cot_dropped_preserve_false(self):
-        from lumen.core._agent import PRIORITY_KEEP_IF_ROOM
+        from ulmen.core._agent import PRIORITY_KEEP_IF_ROOM
         records = [self._cot("c1", "t1", 1)]
         result = _compress_completed_sequences(
             records, PRIORITY_KEEP_IF_ROOM, preserve_cot=False
@@ -1543,7 +1543,7 @@ class TestCompressCompletedSequences:
         assert not any(r["type"] == "cot" for r in result)
 
     def test_cot_converted_to_mem_preserve_true(self):
-        from lumen.core._agent import PRIORITY_KEEP_IF_ROOM
+        from ulmen.core._agent import PRIORITY_KEEP_IF_ROOM
         records = [self._cot("c1", "t1", 1)]
         result = _compress_completed_sequences(
             records, PRIORITY_KEEP_IF_ROOM, preserve_cot=True
@@ -1552,7 +1552,7 @@ class TestCompressCompletedSequences:
         assert not any(r["type"] == "cot" for r in result)
 
     def test_must_keep_priority_never_compressed(self):
-        from lumen.core._agent import (
+        from ulmen.core._agent import (
             PRIORITY_KEEP_IF_ROOM,
             PRIORITY_MUST_KEEP,
         )
@@ -1563,7 +1563,7 @@ class TestCompressCompletedSequences:
         assert any(r["type"] == "tool" for r in result)
 
     def test_msg_plan_obs_err_mem_hyp_rag_always_kept(self):
-        from lumen.core._agent import PRIORITY_KEEP_IF_ROOM
+        from ulmen.core._agent import PRIORITY_KEEP_IF_ROOM
         records = [
             self._msg("m1", "t1", 1),
             {
@@ -1582,7 +1582,7 @@ class TestCompressCompletedSequences:
         assert "obs" in types
 
     def test_duplicate_tool_id_compressed_only_once(self):
-        from lumen.core._agent import PRIORITY_KEEP_IF_ROOM
+        from ulmen.core._agent import PRIORITY_KEEP_IF_ROOM
         records = [
             self._tool("tc1", "t1", 1),
             self._tool("tc1", "t1", 1),
@@ -1593,7 +1593,7 @@ class TestCompressCompletedSequences:
         assert mem_count == 1
 
     def test_meta_fields_copied_to_compressed_mem(self):
-        from lumen.core._agent import PRIORITY_KEEP_IF_ROOM
+        from ulmen.core._agent import PRIORITY_KEEP_IF_ROOM
         rec = self._tool("tc1", "t1", 1)
         rec["from_agent"] = "agent_a"
         records = [rec, self._res("tc1", "t1", 2)]
@@ -1603,7 +1603,7 @@ class TestCompressCompletedSequences:
         assert mem_recs[0].get("from_agent") == "agent_a"
 
     def test_cot_meta_fields_copied_when_preserve_true(self):
-        from lumen.core._agent import PRIORITY_KEEP_IF_ROOM
+        from ulmen.core._agent import PRIORITY_KEEP_IF_ROOM
         rec = self._cot("c1", "t1", 1)
         rec["from_agent"] = "agent_b"
         result = _compress_completed_sequences(
@@ -1613,7 +1613,7 @@ class TestCompressCompletedSequences:
         assert mem_recs[0].get("from_agent") == "agent_b"
 
     def test_unmatched_res_falls_through_to_result(self):
-        from lumen.core._agent import PRIORITY_KEEP_IF_ROOM
+        from ulmen.core._agent import PRIORITY_KEEP_IF_ROOM
         records = [self._res("ghost_id", "t1", 1)]
         result = _compress_completed_sequences(records, PRIORITY_KEEP_IF_ROOM)
         assert any(r["type"] == "res" for r in result)
@@ -1734,7 +1734,7 @@ class TestGenerateSystemPrompt:
 
     def test_contains_agent_magic(self):
         result = generate_system_prompt()
-        assert "LUMEN-AGENT v1" in result
+        assert "ULMEN-AGENT v1" in result
 
     def test_contains_all_10_record_types(self):
         result = generate_system_prompt()
@@ -1768,7 +1768,7 @@ class TestGenerateSystemPrompt:
 
 
 class TestConvertBridge:
-    """Covers lines 1398-1504: convert_agent_to_lumia and convert_lumia_to_agent."""
+    """Covers lines 1398-1504: convert_agent_to_ulmen and convert_ulmen_to_agent."""
 
     def _msg(self, mid, tid, step):
         return {
@@ -1777,13 +1777,13 @@ class TestConvertBridge:
             "tokens": 1, "flagged": False,
         }
 
-    def test_agent_to_lumia_starts_with_lumia_magic(self):
+    def test_agent_to_ulmen_starts_with_ulmen_magic(self):
         payload = encode_agent_payload([self._msg("m1", "t1", 1)])
-        lumia = convert_agent_to_lumia(payload)
-        assert lumia.startswith("L|")
+        ulmen = convert_agent_to_ulmen(payload)
+        assert ulmen.startswith("L|")
 
-    def test_lumia_to_agent_valid_payload(self):
-        from lumen.core._lumen_llm import encode_lumen_llm
+    def test_ulmen_to_agent_valid_payload(self):
+        from ulmen.core._ulmen_llm import encode_ulmen_llm
         records = [
             {
                 "type": "msg", "id": "m1", "thread_id": "t1", "step": 1,
@@ -1791,27 +1791,27 @@ class TestConvertBridge:
                 "tokens": 1, "flagged": False,
             }
         ]
-        lumia = encode_lumen_llm(records)
-        agent_payload = convert_lumia_to_agent(lumia, thread_id="t1")
-        assert "LUMEN-AGENT v1" in agent_payload
+        ulmen = encode_ulmen_llm(records)
+        agent_payload = convert_ulmen_to_agent(ulmen, thread_id="t1")
+        assert "ULMEN-AGENT v1" in agent_payload
 
-    def test_lumia_to_agent_skips_non_dict_records(self):
-        from lumen.core._lumen_llm import encode_lumen_llm
-        lumia = encode_lumen_llm([1, 2, 3])
-        agent_payload = convert_lumia_to_agent(lumia, thread_id="t1")
+    def test_ulmen_to_agent_skips_non_dict_records(self):
+        from ulmen.core._ulmen_llm import encode_ulmen_llm
+        ulmen = encode_ulmen_llm([1, 2, 3])
+        agent_payload = convert_ulmen_to_agent(ulmen, thread_id="t1")
         decoded = decode_agent_payload(agent_payload)
         assert decoded == []
 
-    def test_lumia_to_agent_skips_unknown_type(self):
-        from lumen.core._lumen_llm import encode_lumen_llm
+    def test_ulmen_to_agent_skips_unknown_type(self):
+        from ulmen.core._ulmen_llm import encode_ulmen_llm
         records = [{"type": "unknown_type", "id": "x", "thread_id": "t1"}]
-        lumia = encode_lumen_llm(records)
-        agent_payload = convert_lumia_to_agent(lumia, thread_id="t1")
+        ulmen = encode_ulmen_llm(records)
+        agent_payload = convert_ulmen_to_agent(ulmen, thread_id="t1")
         decoded = decode_agent_payload(agent_payload)
         assert decoded == []
 
-    def test_lumia_to_agent_assigns_thread_id_when_missing(self):
-        from lumen.core._lumen_llm import encode_lumen_llm
+    def test_ulmen_to_agent_assigns_thread_id_when_missing(self):
+        from ulmen.core._ulmen_llm import encode_ulmen_llm
         records = [
             {
                 "type": "msg", "id": "m1", "thread_id": "", "step": 1,
@@ -1819,14 +1819,14 @@ class TestConvertBridge:
                 "tokens": 1, "flagged": False,
             }
         ]
-        lumia = encode_lumen_llm(records)
-        agent_payload = convert_lumia_to_agent(lumia, thread_id="assigned")
+        ulmen = encode_ulmen_llm(records)
+        agent_payload = convert_ulmen_to_agent(ulmen, thread_id="assigned")
         decoded = decode_agent_payload(agent_payload)
         if decoded:
             assert decoded[0]["thread_id"] == "assigned"
 
-    def test_lumia_to_agent_assigns_id_when_missing(self):
-        from lumen.core._lumen_llm import encode_lumen_llm
+    def test_ulmen_to_agent_assigns_id_when_missing(self):
+        from ulmen.core._ulmen_llm import encode_ulmen_llm
         records = [
             {
                 "type": "msg", "thread_id": "t1", "step": 1,
@@ -1834,12 +1834,12 @@ class TestConvertBridge:
                 "tokens": 1, "flagged": False,
             }
         ]
-        lumia = encode_lumen_llm(records)
-        agent_payload = convert_lumia_to_agent(lumia, thread_id="t1")
-        assert "LUMEN-AGENT v1" in agent_payload
+        ulmen = encode_ulmen_llm(records)
+        agent_payload = convert_ulmen_to_agent(ulmen, thread_id="t1")
+        assert "ULMEN-AGENT v1" in agent_payload
 
-    def test_lumia_to_agent_assigns_step_when_missing(self):
-        from lumen.core._lumen_llm import encode_lumen_llm
+    def test_ulmen_to_agent_assigns_step_when_missing(self):
+        from ulmen.core._ulmen_llm import encode_ulmen_llm
         records = [
             {
                 "type": "msg", "id": "m1", "thread_id": "t1",
@@ -1847,16 +1847,16 @@ class TestConvertBridge:
                 "tokens": 1, "flagged": False,
             }
         ]
-        lumia = encode_lumen_llm(records)
-        agent_payload = convert_lumia_to_agent(lumia, thread_id="t1")
-        assert "LUMEN-AGENT v1" in agent_payload
+        ulmen = encode_ulmen_llm(records)
+        agent_payload = convert_ulmen_to_agent(ulmen, thread_id="t1")
+        assert "ULMEN-AGENT v1" in agent_payload
 
-    def test_round_trip_agent_lumia_agent(self):
+    def test_round_trip_agent_ulmen_agent(self):
         payload = encode_agent_payload([self._msg("m1", "t1", 1)])
-        lumia = convert_agent_to_lumia(payload)
-        assert lumia.startswith("L|")
-        back = convert_lumia_to_agent(lumia, thread_id="t1")
-        assert "LUMEN-AGENT v1" in back
+        ulmen = convert_agent_to_ulmen(payload)
+        assert ulmen.startswith("L|")
+        back = convert_ulmen_to_agent(ulmen, thread_id="t1")
+        assert "ULMEN-AGENT v1" in back
 
 
 class TestSummarizeAsMemAndGetLatestMem:
@@ -1926,29 +1926,29 @@ class TestUncoveredLines:
         assert bool(ve) is False
 
     def test_split_row_quoted_then_trailing_pipe(self):
-        from lumen.core._agent import _split_row
+        from ulmen.core._agent import _split_row
         result = _split_row('"hello"|world|')
         assert result[-1] == ""
         assert len(result) == 3
 
     def test_decode_agent_record_truly_empty_fields_unreachable(self):
-        from lumen.core._agent import _split_row
+        from ulmen.core._agent import _split_row
         result = _split_row("")
         assert result == [""]
 
     def test_decode_agent_stream_reraises_non_records_parse_error(self):
-        from lumen.core._agent import decode_agent_stream
+        from ulmen.core._agent import decode_agent_stream
         lines = [
-            "LUMEN-AGENT v1",
+            "ULMEN-AGENT v1",
             "context_window: abc",
         ]
         with pytest.raises(ValueError, match="Bad context_window"):
             list(decode_agent_stream(iter(lines)))
 
     def test_decode_agent_stream_overflow_path_data_in_header_buffer(self):
-        from lumen.core._agent import decode_agent_stream
+        from ulmen.core._agent import decode_agent_stream
         lines = [
-            "LUMEN-AGENT v1",
+            "ULMEN-AGENT v1",
             "records: 1",
             "msg|m1|t1|1|user|1|hi|1|F",
         ]
@@ -1957,9 +1957,9 @@ class TestUncoveredLines:
         assert records[0]["id"] == "m1"
 
     def test_decode_agent_stream_overflow_blank_line_skipped(self):
-        from lumen.core._agent import decode_agent_stream
+        from ulmen.core._agent import decode_agent_stream
         lines = [
-            "LUMEN-AGENT v1",
+            "ULMEN-AGENT v1",
             "records: 1",
             "",
             "msg|m1|t1|1|user|1|hi|1|F",
@@ -1968,9 +1968,9 @@ class TestUncoveredLines:
         assert len(records) == 1
 
     def test_decode_agent_stream_overflow_bad_row_raises(self):
-        from lumen.core._agent import decode_agent_stream
+        from ulmen.core._agent import decode_agent_stream
         lines = [
-            "LUMEN-AGENT v1",
+            "ULMEN-AGENT v1",
             "records: 1",
             "badtype|x|t1|1|data",
         ]
@@ -1978,9 +1978,9 @@ class TestUncoveredLines:
             list(decode_agent_stream(iter(lines)))
 
     def test_decode_agent_stream_overflow_stops_at_record_count(self):
-        from lumen.core._agent import decode_agent_stream
+        from ulmen.core._agent import decode_agent_stream
         lines = [
-            "LUMEN-AGENT v1",
+            "ULMEN-AGENT v1",
             "records: 1",
             "msg|m1|t1|1|user|1|hi|1|F",
             "msg|m2|t1|2|user|2|bye|1|F",
@@ -1989,9 +1989,9 @@ class TestUncoveredLines:
         assert len(records) == 1
 
     def test_decode_agent_stream_blank_line_in_data_section_skipped(self):
-        from lumen.core._agent import decode_agent_stream
+        from ulmen.core._agent import decode_agent_stream
         payload = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 2\n"
             "msg|m1|t1|1|user|1|hi|1|F\n"
             "msg|m2|t1|2|user|2|bye|1|F\n"
@@ -2007,7 +2007,7 @@ class TestDecodeAgentRecordEmptyRow:
     def test_empty_fields_list_raises(self):
         from unittest.mock import patch
 
-        import lumen.core._agent as _agent_mod
+        import ulmen.core._agent as _agent_mod
         with patch.object(_agent_mod, "_split_row", return_value=[]), pytest.raises(ValueError, match="Empty row"):
             decode_agent_record("msg|m1|t1|1|user|1|hi|1|F")
 
@@ -2027,43 +2027,44 @@ class TestSchemaEvolution:
     # validate_schema_compliance ------------------------------------------
 
     def test_valid_record(self):
-        from lumen import validate_schema_compliance
+        from ulmen import validate_schema_compliance
         ok, err = validate_schema_compliance([self._msg()])
         assert ok is True and err is None
 
     def test_unknown_version_raises(self):
-        from lumen import validate_schema_compliance
         import pytest
+
+        from ulmen import validate_schema_compliance
         with pytest.raises(ValueError, match="Unknown schema version"):
             validate_schema_compliance([self._msg()], schema_version="9.9.9")
 
     def test_unknown_type(self):
-        from lumen import validate_schema_compliance
+        from ulmen import validate_schema_compliance
         rec = {"type": "ghost", "id": "x", "thread_id": "t1", "step": 1}
         ok, err = validate_schema_compliance([rec])
         assert ok is False and "unknown type" in err
 
     def test_missing_required_field(self):
-        from lumen import validate_schema_compliance
+        from ulmen import validate_schema_compliance
         rec = self._msg()
         del rec["role"]
         ok, err = validate_schema_compliance([rec])
         assert ok is False and "missing required field" in err and "role" in err
 
     def test_forbidden_field(self):
-        from lumen import validate_schema_compliance
+        from ulmen import validate_schema_compliance
         rec = self._msg()
         rec["not_a_real_field"] = "oops"
         ok, err = validate_schema_compliance([rec])
         assert ok is False and "not_a_real_field" in err
 
     def test_default_version_used_when_none(self):
-        from lumen import validate_schema_compliance
+        from ulmen import validate_schema_compliance
         ok, err = validate_schema_compliance([self._msg()], schema_version=None)
         assert ok is True
 
     def test_meta_fields_allowed(self):
-        from lumen import validate_schema_compliance
+        from ulmen import validate_schema_compliance
         rec = self._msg()
         rec["from_agent"] = "agent_a"
         rec["to_agent"] = "agent_b"
@@ -2071,34 +2072,37 @@ class TestSchemaEvolution:
         assert ok is True
 
     def test_empty_records_valid(self):
-        from lumen import validate_schema_compliance
+        from ulmen import validate_schema_compliance
         ok, err = validate_schema_compliance([])
         assert ok is True and err is None
 
     # migrate_schema --------------------------------------------------------
 
     def test_noop_same_version(self):
-        from lumen import migrate_schema
+        from ulmen import migrate_schema
         recs = [self._msg()]
         result = migrate_schema(recs, "1.0.0", "1.0.0")
         assert result is recs
 
     def test_unknown_from_version_raises(self):
-        from lumen import migrate_schema
         import pytest
+
+        from ulmen import migrate_schema
         with pytest.raises(ValueError, match="Unknown source schema version"):
             migrate_schema([self._msg()], "0.0.0", "1.0.0")
 
     def test_unknown_to_version_raises(self):
-        from lumen import migrate_schema
         import pytest
+
+        from ulmen import migrate_schema
         with pytest.raises(ValueError, match="Unknown target schema version"):
             migrate_schema([self._msg()], "1.0.0", "9.9.9")
 
     def test_missing_migration_path_raises(self):
-        from lumen import migrate_schema
-        import lumen.core._agent as _agent_mod
         import pytest
+
+        import ulmen.core._agent as _agent_mod
+        from ulmen import migrate_schema
         # Temporarily register a fake version
         _agent_mod.SCHEMA_VERSIONS["1.1.0"] = _agent_mod.SCHEMA_VERSIONS["1.0.0"]
         try:
@@ -2108,8 +2112,8 @@ class TestSchemaEvolution:
             del _agent_mod.SCHEMA_VERSIONS["1.1.0"]
 
     def test_registered_migration_called(self):
-        from lumen import migrate_schema
-        import lumen.core._agent as _agent_mod
+        import ulmen.core._agent as _agent_mod
+        from ulmen import migrate_schema
         sentinel = [False]
         def fake_migrate(records):
             sentinel[0] = True
@@ -2117,7 +2121,7 @@ class TestSchemaEvolution:
         _agent_mod.SCHEMA_VERSIONS["1.1.0"] = _agent_mod.SCHEMA_VERSIONS["1.0.0"]
         _agent_mod._MIGRATIONS[("1.0.0", "1.1.0")] = fake_migrate
         try:
-            result = migrate_schema([self._msg()], "1.0.0", "1.1.0")
+            migrate_schema([self._msg()], "1.0.0", "1.1.0")
             assert sentinel[0] is True
         finally:
             del _agent_mod.SCHEMA_VERSIONS["1.1.0"]

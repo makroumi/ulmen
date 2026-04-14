@@ -1,15 +1,15 @@
 """
-Unit tests for lumen/core/_repair.py
+Unit tests for ulmen/core/_repair.py
 Target: 100% coverage of parse_llm_output and helpers.
 """
 import pytest
 
-from lumen.core._agent import (
+from ulmen.core._agent import (
     decode_agent_payload,
     encode_agent_payload,
     validate_agent_payload,
 )
-from lumen.core._repair import (
+from ulmen.core._repair import (
     _find_magic,
     _is_data_line,
     _is_header_line,
@@ -18,7 +18,7 @@ from lumen.core._repair import (
     parse_llm_output,
 )
 
-MAGIC = "LUMEN-AGENT v1"
+MAGIC = "ULMEN-AGENT v1"
 
 
 def _msg(mid, tid, step):
@@ -274,7 +274,7 @@ class TestRepairUnknownHeaderLineForwardCompat:
 
     def test_unknown_header_line_before_records_kept(self):
         payload = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "future_extension: some_value\n"
             "records: 1\n"
             "msg|m1|t1|1|user|1|hi|1|F\n"
@@ -285,7 +285,7 @@ class TestRepairUnknownHeaderLineForwardCompat:
 
     def test_multiple_unknown_header_lines_all_kept(self):
         payload = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "x_custom_field: abc\n"
             "y_another: 123\n"
             "records: 1\n"
@@ -301,7 +301,7 @@ class TestRepairLastResortReEncodeGoodRows:
 
     def test_rows_with_bad_enum_skipped_good_rows_kept(self):
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 2\n"
             "msg|m1|t1|1|robot|1|hi|1|F\n"
             "msg|m2|t1|2|user|2|bye|1|F\n"
@@ -314,7 +314,7 @@ class TestRepairLastResortReEncodeGoodRows:
 
     def test_mixed_good_and_malformed_rows(self):
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 3\n"
             "msg|m1|t1|1|user|1|hi|1|F\n"
             "this_is_not_a_valid_row\n"
@@ -345,7 +345,7 @@ class TestRepairLastResortReEncodeGoodRows:
 
     def test_last_resort_produces_correct_record_count(self):
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 10\n"
             "msg|m1|t1|1|user|1|hi|1|F\n"
             "msg|m2|t1|2|user|2|bye|1|F\n"
@@ -362,7 +362,7 @@ class TestRepairNoGoodRecordsPaths:
 
     def test_all_rows_malformed_non_strict_returns_error_payload(self):
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 2\n"
             "completely_invalid_row_1\n"
             "completely_invalid_row_2\n"
@@ -375,7 +375,7 @@ class TestRepairNoGoodRecordsPaths:
 
     def test_all_rows_bad_enum_strict_raises_value_error(self):
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 1\n"
             "msg|m1|t1|1|robot|1|hi|1|F\n"
         )
@@ -384,7 +384,7 @@ class TestRepairNoGoodRecordsPaths:
 
     def test_all_rows_bad_enum_non_strict_returns_error_payload(self):
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 1\n"
             "msg|m1|t1|1|robot|1|hi|1|F\n"
         )
@@ -399,7 +399,7 @@ class TestRepairUncoveredLines:
     """Covers _repair.py lines 171-172, 178-179, 182-185, 195, 204."""
 
     def test_meta_fields_extracted_in_last_resort(self):
-        from lumen.core._agent import encode_agent_payload
+        from ulmen.core._agent import encode_agent_payload
         rec = {
             "type": "msg", "id": "m1", "thread_id": "t1", "step": 1,
             "role": "user", "turn": 1, "content": "hi",
@@ -417,7 +417,7 @@ class TestRepairUncoveredLines:
 
     def test_malformed_rows_skipped_in_last_resort(self):
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 3\n"
             "msg|m1|t1|1|user|1|hi|1|F\n"
             "this_is|completely|wrong\n"
@@ -426,13 +426,13 @@ class TestRepairUncoveredLines:
         result = parse_llm_output(bad)
         ok, _ = validate_agent_payload(result)
         assert ok is True
-        from lumen.core._agent import decode_agent_payload
+        from ulmen.core._agent import decode_agent_payload
         recs = decode_agent_payload(result)
         assert len(recs) == 2
 
     def test_no_good_records_non_strict_returns_error_payload(self):
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 3\n"
             "notarecord1\n"
             "notarecord2\n"
@@ -444,7 +444,7 @@ class TestRepairUncoveredLines:
 
     def test_no_good_records_strict_raises(self):
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 2\n"
             "msg|m1|t1|1|robot|1|hi|1|F\n"
             "msg|m2|t1|2|robot|2|bye|1|F\n"
@@ -454,7 +454,7 @@ class TestRepairUncoveredLines:
 
     def test_successful_re_encode_returns_result(self):
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 99\n"
             "msg|m1|t1|1|user|1|hello world|5|F\n"
             "msg|m2|t1|2|assistant|2|goodbye|4|F\n"
@@ -462,18 +462,18 @@ class TestRepairUncoveredLines:
         result = parse_llm_output(bad)
         ok, _ = validate_agent_payload(result)
         assert ok is True
-        from lumen.core._agent import decode_agent_payload
+        from ulmen.core._agent import decode_agent_payload
         recs = decode_agent_payload(result)
         assert len(recs) == 2
 
     def test_encode_exception_non_strict_returns_error_payload(self):
         from unittest.mock import patch
 
-        import lumen.core._agent as _agent_mod
-        from lumen.core._repair import parse_llm_output as _parse
+        import ulmen.core._agent as _agent_mod
+        from ulmen.core._repair import parse_llm_output as _parse
 
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 2\n"
             "msg|m1|t1|1|robot|1|hi|1|F\n"
             "msg|m2|t1|2|robot|2|bye|1|F\n"
@@ -503,11 +503,11 @@ class TestRepairUncoveredLines:
     def test_encode_exception_strict_raises(self):
         from unittest.mock import patch
 
-        import lumen.core._agent as _agent_mod
-        from lumen.core._repair import parse_llm_output as _parse
+        import ulmen.core._agent as _agent_mod
+        from ulmen.core._repair import parse_llm_output as _parse
 
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 2\n"
             "msg|m1|t1|1|robot|1|hi|1|F\n"
             "msg|m2|t1|2|robot|2|bye|1|F\n"
@@ -562,7 +562,7 @@ class TestRepairCoveredLinesDirect:
         True or False — either way lines 171-172 are hit.
         """
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "thread: t1\n"
             "meta: from_agent,to_agent\n"
             "records: 1\n"
@@ -581,7 +581,7 @@ class TestRepairCoveredLinesDirect:
         strict=False so line 185 executes instead of raising.
         """
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 2\n"
             "msg|m1|t1\n"
             "msg|m2|t1\n"
@@ -597,7 +597,7 @@ class TestRepairCoveredLinesDirect:
         Lines 171-172 + 183-184: meta extracted, no good records, strict=True raises.
         """
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "meta: from_agent,to_agent\n"
             "records: 2\n"
             "msg|m1|t1\n"
@@ -624,7 +624,7 @@ class TestRepairCoveredLinesDirect:
           Line 195: return result.
         """
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 2\n"
             "msg|m1|t1|1|user|1|hi|1|F\n"
             "msg|m2|t1\n"
@@ -642,7 +642,7 @@ class TestRepairCoveredLinesDirect:
         """
         from unittest.mock import patch
 
-        import lumen.core._agent as agent_mod
+        import ulmen.core._agent as agent_mod
 
         call_count = {"n": 0}
         original_validate = agent_mod.validate_agent_payload
@@ -656,7 +656,7 @@ class TestRepairCoveredLinesDirect:
             return original_validate(text, structured=structured)
 
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 99\n"
             "msg|m1|t1|1|user|1|hi|1|F\n"
         )
@@ -670,7 +670,7 @@ class TestRepairCoveredLinesDirect:
         """
         from unittest.mock import patch
 
-        import lumen.core._agent as agent_mod
+        import ulmen.core._agent as agent_mod
 
         call_count = {"n": 0}
         original_validate = agent_mod.validate_agent_payload
@@ -685,7 +685,7 @@ class TestRepairCoveredLinesDirect:
             raise RuntimeError("forced encode failure")
 
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 99\n"
             "msg|m1|t1|1|user|1|hi|1|F\n"
         )
@@ -699,7 +699,7 @@ class TestRepairCoveredLinesDirect:
         """
         from unittest.mock import patch
 
-        import lumen.core._agent as agent_mod
+        import ulmen.core._agent as agent_mod
 
         call_count = {"n": 0}
         original_validate = agent_mod.validate_agent_payload
@@ -719,7 +719,7 @@ class TestRepairCoveredLinesDirect:
             return original_encode(*args, **kwargs)
 
         bad = (
-            "LUMEN-AGENT v1\n"
+            "ULMEN-AGENT v1\n"
             "records: 99\n"
             "msg|m1|t1|1|user|1|hi|1|F\n"
         )

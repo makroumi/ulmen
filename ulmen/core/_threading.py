@@ -1,5 +1,5 @@
 """
-LUMEN-AGENT cross-payload thread persistence.
+ULMEN-AGENT cross-payload thread persistence.
 
 ThreadRegistry tracks records across multiple payloads, keyed by
 (session_id, thread_id). merge_threads merges records from multiple
@@ -35,18 +35,18 @@ class ThreadRegistry:
 
     def ingest(self, payload: str, session_id: str = "") -> int:
         """
-        Decode and ingest a LUMEN-AGENT v1 payload string.
+        Decode and ingest a ULMEN-AGENT v1 payload string.
 
         Parameters
         ----------
-        payload    : LUMEN-AGENT v1 payload string
+        payload    : ULMEN-AGENT v1 payload string
         session_id : session identifier (groups payloads together)
 
         Returns
         -------
         Number of new (non-duplicate) records added.
         """
-        from lumen.core._agent import decode_agent_payload_full
+        from ulmen.core._agent import decode_agent_payload_full
         records, _ = decode_agent_payload_full(payload)
         return self._add_records(records, session_id)
 
@@ -113,14 +113,14 @@ class ThreadRegistry:
 
 def merge_threads(payloads: list[str], session_id: str = "") -> list[dict]:
     """
-    Decode and merge records from multiple LUMEN-AGENT v1 payloads.
+    Decode and merge records from multiple ULMEN-AGENT v1 payloads.
 
     Records are deduplicated by (id, thread_id, step). The merged list
     is ordered by (thread_id, step) for deterministic output.
 
     Parameters
     ----------
-    payloads   : list of LUMEN-AGENT v1 payload strings
+    payloads   : list of ULMEN-AGENT v1 payload strings
     session_id : optional session label (for logging only)
 
     Returns

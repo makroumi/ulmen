@@ -1,18 +1,18 @@
 # API Reference
 
-All public symbols are exported from the top-level `lumen` package.
+All public symbols are exported from the top-level `ulmen` package.
 
 ```python
-from lumen import LumenDict, LumenDictRust, encode_lumen_llm, RUST_AVAILABLE
+from ulmen import UlmenDict, UlmenDictRust, encode_ulmen_llm, RUST_AVAILABLE
 ```
 ---
 
 # Classes
 
-## LumenDict
+## UlmenDict
 Pure Python record container. Zero runtime dependencies.
 ```Python
-class LumenDict:
+class UlmenDict:
     def __init__(self, data=None, optimizations: bool = False)
 ```
 
@@ -35,17 +35,17 @@ class LumenDict:
 ```Python
 def encode_text(self, matrix_mode: bool = True) -> str
 ```
-Encode to LUMEN text format. Result is cached until next mutation.
+Encode to ULMEN text format. Result is cached until next mutation.
 
 ```Python
 def encode_binary(self) -> bytes
 ```
-Encode to LUMEN binary. Strategies applied only when `optimizations=True`.
+Encode to ULMEN binary. Strategies applied only when `optimizations=True`.
 
 ```Python
 def encode_binary_pooled(self) -> bytes
 ```
-Encode to LUMEN binary with all column strategies enabled.
+Encode to ULMEN binary with all column strategies enabled.
 
 ```Python
 def encode_binary_zlib(self, level: int = 6) -> bytes
@@ -53,24 +53,24 @@ def encode_binary_zlib(self, level: int = 6) -> bytes
 Encode with all strategies then compress with zlib. Level 0 to 9.
 
 ```Python
-def encode_lumen_llm(self) -> str
+def encode_ulmen_llm(self) -> str
 ```
-Encode to LUMIA format. Result is cached until next mutation.
+Encode to ULMEN format. Result is cached until next mutation.
 
 ```Python
-def decode_text(self, text: str) -> LumenDict
+def decode_text(self, text: str) -> UlmenDict
 ```
-Decode a LUMEN text payload into a new LumenDict.
+Decode a ULMEN text payload into a new UlmenDict.
 
 ```Python
-def decode_binary(self, data: bytes) -> LumenDict
+def decode_binary(self, data: bytes) -> UlmenDict
 ```
-Decode a LUMEN binary payload into a new LumenDict.
+Decode a ULMEN binary payload into a new UlmenDict.
 
 ```Python
-def decode_lumen_llm(self, text: str) -> LumenDict
+def decode_ulmen_llm(self, text: str) -> UlmenDict
 ```
-Decode a LUMIA payload into a new LumenDict.
+Decode a ULMEN payload into a new UlmenDict.
 
 ```Python
 def to_json(self) -> str
@@ -90,12 +90,12 @@ def __iter__(self)
 
 ---
 
-## LumenDictFull
+## UlmenDictFull
 
-Extends LumenDict with a larger pool and strategies always enabled.
+Extends UlmenDict with a larger pool and strategies always enabled.
 
 ```Python
-class LumenDictFull(LumenDict):
+class UlmenDictFull(UlmenDict):
     def __init__(self, data=None, pool_size_limit: int = 256)
 ```
 
@@ -106,19 +106,19 @@ class LumenDictFull(LumenDict):
 | `data` | list, dict, iterable, None | None | Records to initialise with |
 | `pool_size_limit` | int | 256 | Maximum number of strings in the pool |
 
-All 'LumenDict' methods are available. 'encode_binary()' always uses
+All 'UlmenDict' methods are available. 'encode_binary()' always uses
 full strategy selection regardless of the optimizations flag.
 
 ---
 
-## LumenDictRust
-Rust-accelerated drop-in replacement for 'LumenDict'.
+## UlmenDictRust
+Rust-accelerated drop-in replacement for 'UlmenDict'.
 Available when the Rust extension is compiled. Falls back to a Python
 shim with the same interface when Rust is unavailable.
 
 ```Python
 
-class LumenDictRust:
+class UlmenDictRust:
     def __init__(
         self,
         data: list = None,
@@ -137,11 +137,11 @@ class LumenDictRust:
 
 ### Methods
 
-All methods from 'LumenDict' are available plus:
+All methods from 'UlmenDict' are available plus:
 
 ```Python
 def pool_size(self) -> int
-def encode_lumen_llm(self) -> str
+def encode_ulmen_llm(self) -> str
 def bench_encode_text_only(self, iters: int) -> int
 def bench_encode_binary_only(self, iters: int) -> int
 def bench_encode_text_clone(self, iters: int) -> int
@@ -150,12 +150,12 @@ def bench_encode_binary_clone(self, iters: int) -> int
 
 ---
 
-## LumenDictFullRust
-Rust-accelerated drop-in replacement for 'LumenDictFull'.
+## UlmenDictFullRust
+Rust-accelerated drop-in replacement for 'UlmenDictFull'.
 
 ```Python
 
-class LumenDictFullRust(LumenDictFull):
+class UlmenDictFullRust(UlmenDictFull):
     def __init__(
         self,
         data: list = None,
@@ -163,16 +163,16 @@ class LumenDictFullRust(LumenDictFull):
     )
 ```
 
-Same methods as 'LumenDictRust'. Strategies are always enabled.
+Same methods as 'UlmenDictRust'. Strategies are always enabled.
 
 ---
 
 ## Module-Level Functions
 ### Encoding
 ```Python
-def encode_lumen_llm(records: list) -> str
+def encode_ulmen_llm(records: list) -> str
 ```
-Encode records to LUMIA format. Uses Rust when available.
+Encode records to ULMEN format. Uses Rust when available.
 
 ```Python
 def encode_text_records(
@@ -197,19 +197,19 @@ Low-level binary encoder. Manages no pool state.
 
 ### Decoding
 ```Python
-def decode_lumen_llm(text: str) -> list
+def decode_ulmen_llm(text: str) -> list
 ```
-Decode LUMIA format. Uses Rust when available.
+Decode ULMEN format. Uses Rust when available.
 
 ```Python
 def decode_text_records(text: str) -> list
 ```
-Decode LUMEN text format.
+Decode ULMEN text format.
 
 ```Python
 def decode_binary_records(data: bytes) -> list
 ```
-Decode LUMEN binary format. Uses Rust when available.
+Decode ULMEN binary format. Uses Rust when available.
 
 ### Pool and Strategy
 ```Python
@@ -238,7 +238,7 @@ def compute_bits_savings(bools: list) -> dict
 ```
 Returns {"raw": int, "bits": int, "saving": int}.
 
-### LUMEN-AGENT
+### ULMEN-AGENT
 ```Python
 def encode_agent_payload(records: list[dict]) -> str
 def decode_agent_payload(text: str) -> list[dict]

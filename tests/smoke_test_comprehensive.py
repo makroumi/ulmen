@@ -1,5 +1,5 @@
 """
-LUMEN Comprehensive Smoke Test
+ULMEN Comprehensive Smoke Test
 ===============================
 Tests every gap identified in the audit. Each section is clearly labeled.
 Run with: python3 tests/smoke_test_comprehensive.py
@@ -46,37 +46,37 @@ def section(title):
 # Imports
 # ---------------------------------------------------------------------------
 
-from lumen import (
+from ulmen import (
     AGENT_MAGIC,
     COMPRESS_COMPLETED_SEQUENCES,
     COMPRESS_KEEP_TYPES,
     COMPRESS_SLIDING_WINDOW,
-    LUMEN_LLM_MAGIC,
     PRIORITY_KEEP_IF_ROOM,
     PRIORITY_MUST_KEEP,
     RECORD_TYPES,
     RUST_AVAILABLE,
+    ULMEN_LLM_MAGIC,
     ContextBudgetExceededError,
-    LumenDict,
-    LumenDictRust,
+    UlmenDict,
+    UlmenDictRust,
     ValidationError,
     build_summary_chain,
     chunk_payload,
     compress_context,
-    convert_agent_to_lumia,
-    convert_lumia_to_agent,
+    convert_agent_to_ulmen,
+    convert_ulmen_to_agent,
     decode_agent_payload,
     decode_agent_payload_full,
     decode_agent_record,
     decode_agent_stream,
     decode_binary_records,
-    decode_lumen_llm,
     decode_text_records,
+    decode_ulmen_llm,
     dedup_mem,
     encode_agent_payload,
     encode_agent_record,
     encode_binary_records,
-    encode_lumen_llm,
+    encode_ulmen_llm,
     estimate_context_usage,
     estimate_tokens,
     extract_subgraph_payload,
@@ -137,7 +137,7 @@ section("1. CORE ENCODE/DECODE ROUND-TRIPS")
 def _test_binary_round_trip():
     records = [{"id": i, "name": f"user_{i}", "score": i * 1.5, "active": i % 2 == 0}
                for i in range(100)]
-    ld = LumenDict(records)
+    ld = UlmenDict(records)
     data = ld.encode_binary_pooled()
     back = decode_binary_records(data)
     assert len(back) == 100
@@ -150,7 +150,7 @@ test("binary round-trip 100 records", _test_binary_round_trip)
 
 def _test_text_round_trip():
     records = [{"id": i, "city": "London", "active": True} for i in range(50)]
-    ld = LumenDict(records)
+    ld = UlmenDict(records)
     text = ld.encode_text()
     back = decode_text_records(text)
     assert len(back) == 50
@@ -160,17 +160,17 @@ def _test_text_round_trip():
 test("text round-trip 50 records", _test_text_round_trip)
 
 
-def _test_lumia_round_trip():
+def _test_ulmen_round_trip():
     records = [{"id": i, "name": f"alice_{i}", "score": 98.5, "active": True}
                for i in range(20)]
-    lumia = encode_lumen_llm(records)
-    assert lumia.startswith(LUMEN_LLM_MAGIC)
-    back = decode_lumen_llm(lumia)
+    ulmen = encode_ulmen_llm(records)
+    assert ulmen.startswith(ULMEN_LLM_MAGIC)
+    back = decode_ulmen_llm(ulmen)
     assert len(back) == 20
     assert back[0]["id"] == 0
 
 
-test("LUMIA round-trip 20 records", _test_lumia_round_trip)
+test("ULMEN round-trip 20 records", _test_ulmen_round_trip)
 
 
 def _test_agent_round_trip():
@@ -182,12 +182,12 @@ def _test_agent_round_trip():
     assert recs[2]["status"] == "done"
 
 
-test("LUMEN-AGENT round-trip", _test_agent_round_trip)
+test("ULMEN-AGENT round-trip", _test_agent_round_trip)
 
 
 def _test_special_floats():
     records = [{"nan": float("nan"), "inf": float("inf"), "ninf": float("-inf")}]
-    ld = LumenDict(records)
+    ld = UlmenDict(records)
     data = ld.encode_binary_pooled()
     back = decode_binary_records(data)
     assert math.isnan(back[0]["nan"])
@@ -200,7 +200,7 @@ test("special floats NaN/inf/-inf round-trip", _test_special_floats)
 
 def _test_unicode():
     records = [{"text": "日本語"}, {"text": "مرحبا"}, {"text": "🎉"}, {"text": "Ñoño"}]
-    ld = LumenDict(records)
+    ld = UlmenDict(records)
     data = ld.encode_binary_pooled()
     back = decode_binary_records(data)
     assert back[0]["text"] == "日本語"
@@ -212,7 +212,7 @@ test("unicode strings round-trip", _test_unicode)
 
 def _test_null_values():
     records = [{"v": None, "n": 1}, {"v": "x", "n": None}]
-    ld = LumenDict(records)
+    ld = UlmenDict(records)
     data = ld.encode_binary_pooled()
     back = decode_binary_records(data)
     assert back[0]["v"] is None
@@ -224,7 +224,7 @@ test("null values round-trip", _test_null_values)
 
 def _test_empty_string():
     records = [{"s": ""}, {"s": "hello"}]
-    ld = LumenDict(records)
+    ld = UlmenDict(records)
     data = ld.encode_binary_pooled()
     back = decode_binary_records(data)
     assert back[0]["s"] == ""
@@ -237,7 +237,7 @@ test("empty string round-trip", _test_empty_string)
 def _test_large_dataset():
     records = [{"id": i, "name": f"user_{i}", "city": ["NYC", "LA", "Chicago"][i % 3]}
                for i in range(10000)]
-    ld = LumenDict(records)
+    ld = UlmenDict(records)
     data = ld.encode_binary_pooled()
     back = decode_binary_records(data)
     assert len(back) == 10000
@@ -247,10 +247,10 @@ test("large dataset 10k records", _test_large_dataset)
 
 
 # ===========================================================================
-# SECTION 2: LUMEN-AGENT protocol
+# SECTION 2: ULMEN-AGENT protocol
 # ===========================================================================
 
-section("2. LUMEN-AGENT PROTOCOL")
+section("2. ULMEN-AGENT PROTOCOL")
 
 
 def _test_all_10_record_types():
@@ -697,7 +697,7 @@ test("merge_chunks reassembles chunked payloads [GAP #6]", _test_merge_chunks_ex
 
 
 def _test_context_chain_protocol():
-    from lumen import decode_agent_payload_full, encode_agent_payload
+    from ulmen import decode_agent_payload_full, encode_agent_payload
     payload = encode_agent_payload(
         BASE_RECORDS, thread_id="t1",
         payload_id="pay_001", parent_payload_id="pay_000",
@@ -714,7 +714,7 @@ test("AgentHeader has payload_id + parent_payload_id [GAP #18]", _test_context_c
 
 
 def _test_summary_chain():
-    from lumen import decode_agent_payload_full
+    from ulmen import decode_agent_payload_full
     records = BASE_RECORDS * 20  # 120 records
     chain = build_summary_chain(records, token_budget=100, thread_id="t1")
     assert len(chain) > 0
@@ -737,7 +737,7 @@ section("6. REAL TOKEN COUNTING")
 
 
 def _test_real_token_counter():
-    from lumen import count_tokens_exact
+    from ulmen import count_tokens_exact
     # Must exist and be more accurate than len/4
     result = count_tokens_exact("Hello, world! This is a test.")
     assert isinstance(result, int)
@@ -745,9 +745,9 @@ def _test_real_token_counter():
     # Must be better than pure len/4 for contractions
     assert count_tokens_exact("") == 0
     assert count_tokens_exact("hi") >= 1
-    # LUMEN-AGENT payload token count
-    from lumen import encode_agent_payload
+    # ULMEN-AGENT payload token count
     from tests.smoke_test_comprehensive import BASE_RECORDS
+    from ulmen import encode_agent_payload
     payload = encode_agent_payload(BASE_RECORDS, thread_id="t1")
     tok = count_tokens_exact(payload)
     assert tok > 0
@@ -780,7 +780,7 @@ section("7. LLM OUTPUT PARSER / AUTO-REPAIR")
 
 def _test_llm_output_parser_exists():
     # Valid payload passes through unchanged
-    from lumen import encode_agent_payload, parse_llm_output, validate_agent_payload
+    from ulmen import encode_agent_payload, parse_llm_output, validate_agent_payload
     payload = encode_agent_payload(BASE_RECORDS, thread_id="t1")
     repaired = parse_llm_output(payload)
     ok, err = validate_agent_payload(repaired)
@@ -791,9 +791,9 @@ test("parse_llm_output parses raw LLM text [GAP #19]", _test_llm_output_parser_e
 
 
 def _test_auto_repair_wrong_count():
-    from lumen import parse_llm_output, validate_agent_payload
+    from ulmen import parse_llm_output, validate_agent_payload
     # Simulate LLM writing wrong records: count (says 99, has 1)
-    bad_payload = "LUMEN-AGENT v1\nrecords: 99\nmsg|m1|t1|1|user|1|hi|1|F\n"
+    bad_payload = "ULMEN-AGENT v1\nrecords: 99\nmsg|m1|t1|1|user|1|hi|1|F\n"
     ok, err = validate_agent_payload(bad_payload)
     assert ok is False
     assert "mismatch" in err
@@ -801,7 +801,7 @@ def _test_auto_repair_wrong_count():
     repaired = parse_llm_output(bad_payload)
     ok2, err2 = validate_agent_payload(repaired)
     assert ok2 is True, f"Auto-repair failed: {err2}"
-    from lumen import decode_agent_payload
+    from ulmen import decode_agent_payload
     recs = decode_agent_payload(repaired)
     assert len(recs) == 1
     assert recs[0]["id"] == "m1"
@@ -811,8 +811,8 @@ test("auto-repair fixes wrong records: count [GAP #19]", _test_auto_repair_wrong
 
 
 def _test_structured_validation_error():
-    from lumen import validate_agent_payload
-    bad_payload = "LUMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|robot|1|hi|1|F\n"
+    from ulmen import validate_agent_payload
+    bad_payload = "ULMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|robot|1|hi|1|F\n"
     ok, err = validate_agent_payload(bad_payload, structured=True)
     assert ok is False
     assert isinstance(err, ValidationError)
@@ -851,7 +851,7 @@ test("from_agent/to_agent fields preserved in payload", _test_from_to_agent_fiel
 
 
 def _test_agent_router_exists():
-    from lumen import AgentRouter
+    from ulmen import AgentRouter
     router = AgentRouter()
     received = []
     router.register("agent_a", "agent_b", lambda r: received.append(r))
@@ -871,7 +871,7 @@ test("AgentRouter dispatches by from/to_agent [GAP #3]", _test_agent_router_exis
 
 
 def _test_routing_validation():
-    from lumen import validate_routing_consistency
+    from ulmen import validate_routing_consistency
     records = [
         {"type": "msg", "id": "m1", "thread_id": "t1", "step": 1,
          "role": "user", "turn": 1, "content": "hi", "tokens": 1, "flagged": False,
@@ -936,51 +936,51 @@ test("duplicate mem keys: documents current behavior (no dedup)", _test_duplicat
 
 
 # ===========================================================================
-# SECTION 10: LUMIA ↔ LUMEN-AGENT bridge
+# SECTION 10: ULMEN ↔ ULMEN-AGENT bridge
 # ===========================================================================
 
-section("10. LUMIA <-> LUMEN-AGENT BRIDGE")
+section("10. ULMEN <-> ULMEN-AGENT BRIDGE")
 
 
-def _test_lumia_to_agent_bridge():
-    from lumen import encode_lumen_llm
-    # Create LUMIA payload with agent-compatible records
+def _test_ulmen_to_agent_bridge():
+    from ulmen import encode_ulmen_llm
+    # Create ULMEN payload with agent-compatible records
     records = [
         {"type": "msg", "id": "m1", "thread_id": "t1", "step": 1,
          "role": "user", "turn": 1, "content": "hi", "tokens": 1, "flagged": False},
     ]
-    lumia = encode_lumen_llm(records)
-    payload = convert_lumia_to_agent(lumia, thread_id="t1")
+    ulmen = encode_ulmen_llm(records)
+    payload = convert_ulmen_to_agent(ulmen, thread_id="t1")
     assert payload.startswith(AGENT_MAGIC)
 
 
-test("convert_lumia_to_agent bridge [GAP #15]", _test_lumia_to_agent_bridge)
+test("convert_ulmen_to_agent bridge [GAP #15]", _test_ulmen_to_agent_bridge)
 
 
-def _test_agent_to_lumia_bridge():
+def _test_agent_to_ulmen_bridge():
     payload = encode_agent_payload(BASE_RECORDS, thread_id="t1")
-    lumia = convert_agent_to_lumia(payload)
-    assert lumia.startswith(LUMEN_LLM_MAGIC)
-    back = decode_lumen_llm(lumia)
+    ulmen = convert_agent_to_ulmen(payload)
+    assert ulmen.startswith(ULMEN_LLM_MAGIC)
+    back = decode_ulmen_llm(ulmen)
     assert len(back) == len(BASE_RECORDS)
     assert back[0]["type"] == "msg"
 
 
-test("convert_agent_to_lumia bridge [GAP #15]", _test_agent_to_lumia_bridge)
+test("convert_agent_to_ulmen bridge [GAP #15]", _test_agent_to_ulmen_bridge)
 
 
-def _test_manual_agent_to_lumia():
+def _test_manual_agent_to_ulmen():
     # Verify we CAN manually do the conversion today
     payload = encode_agent_payload(BASE_RECORDS, thread_id="t1")
     recs = decode_agent_payload(payload)
-    lumia = encode_lumen_llm(recs)
-    assert lumia.startswith(LUMEN_LLM_MAGIC)
-    back = decode_lumen_llm(lumia)
+    ulmen = encode_ulmen_llm(recs)
+    assert ulmen.startswith(ULMEN_LLM_MAGIC)
+    back = decode_ulmen_llm(ulmen)
     assert len(back) == len(BASE_RECORDS)
     assert back[0]["type"] == "msg"
 
 
-test("manual agent→LUMIA conversion works today", _test_manual_agent_to_lumia)
+test("manual agent→ULMEN conversion works today", _test_manual_agent_to_ulmen)
 
 
 # ===========================================================================
@@ -992,7 +992,7 @@ section("11. PROGRAMMATIC SYSTEM PROMPT")
 
 def _test_system_prompt_generator():
     prompt = generate_system_prompt()
-    assert "LUMEN-AGENT v1" in prompt
+    assert "ULMEN-AGENT v1" in prompt
     assert "msg" in prompt
     assert "tool" in prompt
     assert len(prompt) > 500
@@ -1067,8 +1067,8 @@ test("RUST_AVAILABLE flag readable", _test_rust_available)
 
 def _test_rust_binary_identical():
     records = [{"id": i, "name": f"u{i}", "active": i % 2 == 0} for i in range(100)]
-    py_data   = LumenDict(records).encode_binary_pooled()
-    rust_data = LumenDictRust(records).encode_binary_pooled()
+    py_data   = UlmenDict(records).encode_binary_pooled()
+    rust_data = UlmenDictRust(records).encode_binary_pooled()
     assert py_data == rust_data, "Rust and Python binary output must be byte-identical"
 
 
@@ -1077,27 +1077,27 @@ test("Rust binary output byte-identical to Python", _test_rust_binary_identical)
 
 def _test_rust_text_identical():
     records = [{"id": i, "name": f"u{i}", "city": "NYC"} for i in range(50)]
-    py_text   = LumenDict(records).encode_text()
-    rust_text = LumenDictRust(records).encode_text()
+    py_text   = UlmenDict(records).encode_text()
+    rust_text = UlmenDictRust(records).encode_text()
     assert py_text == rust_text, "Rust and Python text output must be identical"
 
 
 test("Rust text output identical to Python", _test_rust_text_identical)
 
 
-def _test_rust_lumia_identical():
+def _test_rust_ulmen_identical():
     records = [{"id": i, "name": f"u{i}", "score": i * 1.1} for i in range(30)]
-    py_lumia   = LumenDict(records).encode_lumen_llm()
-    rust_lumia = LumenDictRust(records).encode_lumen_llm()
-    assert py_lumia == rust_lumia, "Rust and Python LUMIA must be identical"
+    py_ulmen   = UlmenDict(records).encode_ulmen_llm()
+    rust_ulmen = UlmenDictRust(records).encode_ulmen_llm()
+    assert py_ulmen == rust_ulmen, "Rust and Python ULMEN must be identical"
 
 
-test("Rust LUMIA output identical to Python", _test_rust_lumia_identical)
+test("Rust ULMEN output identical to Python", _test_rust_ulmen_identical)
 
 
 def _test_rust_agent_acceleration():
-    # GAP #5: LUMEN-AGENT Rust acceleration — Python shims exist
-    from lumen import decode_agent_payload_rust, encode_agent_payload_rust
+    # GAP #5: ULMEN-AGENT Rust acceleration — Python shims exist
+    from ulmen import decode_agent_payload_rust, encode_agent_payload_rust
     payload = encode_agent_payload_rust(BASE_RECORDS, thread_id="t1")
     assert payload.startswith(AGENT_MAGIC)
     recs = decode_agent_payload_rust(payload)
@@ -1105,7 +1105,7 @@ def _test_rust_agent_acceleration():
     assert recs[0]["type"] == "msg"
 
 
-test("LUMEN-AGENT Rust encode/decode acceleration [GAP #5]", _test_rust_agent_acceleration)
+test("ULMEN-AGENT Rust encode/decode acceleration [GAP #5]", _test_rust_agent_acceleration)
 
 
 # ===========================================================================
@@ -1116,7 +1116,7 @@ section("14. CROSS-PAYLOAD THREAD PERSISTENCE")
 
 
 def _test_thread_persistence_exists():
-    from lumen import ThreadRegistry, encode_agent_payload
+    from ulmen import ThreadRegistry, encode_agent_payload
     registry = ThreadRegistry()
     payload1 = encode_agent_payload(BASE_RECORDS[:3], thread_id="t1")
     payload2 = encode_agent_payload(BASE_RECORDS[3:], thread_id="t1")
@@ -1133,7 +1133,7 @@ test("ThreadRegistry for cross-payload thread tracking [GAP #2]", _test_thread_p
 
 
 def _test_thread_merge():
-    from lumen import encode_agent_payload, merge_threads
+    from ulmen import encode_agent_payload, merge_threads
     payload1 = encode_agent_payload(BASE_RECORDS[:3], thread_id="t1")
     payload2 = encode_agent_payload(BASE_RECORDS[3:], thread_id="t1")
     merged = merge_threads([payload1, payload2])
@@ -1145,7 +1145,7 @@ test("merge_threads from multiple agent payloads [GAP #2]", _test_thread_merge)
 
 
 def _test_replay_log():
-    from lumen import ReplayLog, encode_agent_payload
+    from ulmen import ReplayLog, encode_agent_payload
     log = ReplayLog(name="test_log")
     payload1 = encode_agent_payload(BASE_RECORDS[:3], thread_id="t1")
     payload2 = encode_agent_payload(BASE_RECORDS[3:], thread_id="t1")
@@ -1178,13 +1178,13 @@ def _test_binary_smaller_than_json():
     records = [{"id": i, "name": f"user_{i}", "city": "London",
                 "score": 98.5, "active": True} for i in range(1000)]
     json_size = len(json.dumps(records, separators=(",", ":")).encode())
-    lumen_size = len(LumenDict(records).encode_binary_pooled())
-    ratio = lumen_size / json_size
-    print(f"\n    JSON={json_size}B  LUMEN={lumen_size}B  ratio={ratio:.2%}")
-    assert ratio < 0.35, f"LUMEN binary should be <35% of JSON size, got {ratio:.2%}"
+    ulmen_size = len(UlmenDict(records).encode_binary_pooled())
+    ratio = ulmen_size / json_size
+    print(f"\n    JSON={json_size}B  ULMEN={ulmen_size}B  ratio={ratio:.2%}")
+    assert ratio < 0.35, f"ULMEN binary should be <35% of JSON size, got {ratio:.2%}"
 
 
-test("LUMEN binary < 35% of JSON size", _test_binary_smaller_than_json)
+test("ULMEN binary < 35% of JSON size", _test_binary_smaller_than_json)
 
 
 def _test_zlib_smaller_than_csv():
@@ -1199,27 +1199,27 @@ def _test_zlib_smaller_than_csv():
     w = csv.DictWriter(buf, fieldnames=records[0].keys())
     w.writeheader(); w.writerows(records)
     csv_size  = len(buf.getvalue().encode())
-    zlib_size = len(LumenDict(records).encode_binary_zlib(level=6))
+    zlib_size = len(UlmenDict(records).encode_binary_zlib(level=6))
     ratio = zlib_size / csv_size
-    print(f"\n    CSV={csv_size}B  LUMEN_zlib={zlib_size}B  ratio={ratio:.2%}")
-    assert ratio < 0.07, f"LUMEN zlib should be <7% of CSV size, got {ratio:.2%}"
+    print(f"\n    CSV={csv_size}B  ULMEN_zlib={zlib_size}B  ratio={ratio:.2%}")
+    assert ratio < 0.07, f"ULMEN zlib should be <7% of CSV size, got {ratio:.2%}"
 
 
-test("LUMEN zlib < 5% of CSV size", _test_zlib_smaller_than_csv)
+test("ULMEN zlib < 5% of CSV size", _test_zlib_smaller_than_csv)
 
 
-def _test_lumia_token_efficiency():
+def _test_ulmen_token_efficiency():
     import json
     records = [{"id": i, "name": f"user_{i}", "city": "London",
                 "score": 98.5, "active": True} for i in range(100)]
     json_tokens  = estimate_tokens(json.dumps(records))
-    lumia_tokens = estimate_tokens(encode_lumen_llm(records))
-    ratio = lumia_tokens / json_tokens
-    print(f"\n    JSON_tokens={json_tokens}  LUMIA_tokens={lumia_tokens}  ratio={ratio:.2%}")
-    assert ratio < 0.60, f"LUMIA should use <60% tokens vs JSON, got {ratio:.2%}"
+    ulmen_tokens = estimate_tokens(encode_ulmen_llm(records))
+    ratio = ulmen_tokens / json_tokens
+    print(f"\n    JSON_tokens={json_tokens}  ULMEN_tokens={ulmen_tokens}  ratio={ratio:.2%}")
+    assert ratio < 0.60, f"ULMEN should use <60% tokens vs JSON, got {ratio:.2%}"
 
 
-test("LUMIA uses <60% tokens vs JSON", _test_lumia_token_efficiency)
+test("ULMEN uses <60% tokens vs JSON", _test_ulmen_token_efficiency)
 
 
 def _test_agent_token_efficiency():
@@ -1229,60 +1229,60 @@ def _test_agent_token_efficiency():
     agent_tokens = estimate_tokens(payload)
     ratio = agent_tokens / json_tokens
     print(f"\n    JSON_tokens={json_tokens}  AGENT_tokens={agent_tokens}  ratio={ratio:.2%}")
-    assert ratio < 0.70, f"LUMEN-AGENT should use <70% tokens vs JSON, got {ratio:.2%}"
+    assert ratio < 0.70, f"ULMEN-AGENT should use <70% tokens vs JSON, got {ratio:.2%}"
 
 
-test("LUMEN-AGENT uses <70% tokens vs JSON", _test_agent_token_efficiency)
+test("ULMEN-AGENT uses <70% tokens vs JSON", _test_agent_token_efficiency)
 
 
 def _test_benchmark_vs_msgpack():
     import msgpack
     records = [{"id": i, "name": f"u{i}", "score": 1.5} for i in range(1000)]
     mp_size    = len(msgpack.packb(records))
-    lumen_size = len(LumenDict(records).encode_binary_pooled())
-    ratio = lumen_size / mp_size
-    print(f"\n    MessagePack={mp_size}B  LUMEN={lumen_size}B  ratio={ratio:.2%}")
-    assert ratio < 1.5, f"LUMEN should be competitive with MessagePack, ratio={ratio:.2%}"
+    ulmen_size = len(UlmenDict(records).encode_binary_pooled())
+    ratio = ulmen_size / mp_size
+    print(f"\n    MessagePack={mp_size}B  ULMEN={ulmen_size}B  ratio={ratio:.2%}")
+    assert ratio < 1.5, f"ULMEN should be competitive with MessagePack, ratio={ratio:.2%}"
 
 
-test("LUMEN competitive with MessagePack [GAP #20]", _test_benchmark_vs_msgpack)
+test("ULMEN competitive with MessagePack [GAP #20]", _test_benchmark_vs_msgpack)
 
 
 # ===========================================================================
-# SECTION 16: lumen/core.py ghost file
+# SECTION 16: ulmen/core.py ghost file
 # ===========================================================================
 
 section("16. CODEBASE INTEGRITY")
 
 
 def _test_core_py_not_empty():
-    # AUDIT GAP #22: lumen/core.py is a ghost file
+    # AUDIT GAP #22: ulmen/core.py is a ghost file
     import os
-    path = "lumen/core.py"
+    path = "ulmen/core.py"
     size = os.path.getsize(path)
-    print(f"\n    lumen/core.py size = {size} bytes")
+    print(f"\n    ulmen/core.py size = {size} bytes")
     if size == 0:
-        raise NotImplementedError("lumen/core.py is empty — AUDIT GAP #22")
+        raise NotImplementedError("ulmen/core.py is empty — AUDIT GAP #22")
     return True
 
 
-test("lumen/core.py is not empty [GAP #22]", _test_core_py_not_empty)
+test("ulmen/core.py is not empty [GAP #22]", _test_core_py_not_empty)
 
 
 def _test_all_imports_work():
-    import lumen
+    import ulmen
     required = [
-        "LumenDict", "LumenDictFull", "LumenDictRust", "LumenDictFullRust",
-        "encode_lumen_llm", "decode_lumen_llm",
+        "UlmenDict", "UlmenDictFull", "UlmenDictRust", "UlmenDictFullRust",
+        "encode_ulmen_llm", "decode_ulmen_llm",
         "encode_agent_payload", "decode_agent_payload", "validate_agent_payload",
         "decode_agent_stream", "compress_context", "estimate_context_usage",
         "RUST_AVAILABLE", "AGENT_MAGIC", "RECORD_TYPES",
     ]
-    missing = [s for s in required if not hasattr(lumen, s)]
-    assert missing == [], f"Missing from lumen namespace: {missing}"
+    missing = [s for s in required if not hasattr(ulmen, s)]
+    assert missing == [], f"Missing from ulmen namespace: {missing}"
 
 
-test("all required symbols importable from lumen", _test_all_imports_work)
+test("all required symbols importable from ulmen", _test_all_imports_work)
 
 
 def _test_escaping_consistency():
@@ -1290,16 +1290,16 @@ def _test_escaping_consistency():
     # Document current state
     pipe_str = "a|b"
 
-    # LUMEN-AGENT: pipe is unsafe, uses RFC 4180
+    # ULMEN-AGENT: pipe is unsafe, uses RFC 4180
     rec = {"type": "msg", "id": "m1", "thread_id": "t1", "step": 1,
            "role": "user", "turn": 1, "content": pipe_str, "tokens": 1, "flagged": False}
     row = encode_agent_record(rec)
     dec = decode_agent_record(row)
     assert dec["content"] == pipe_str
 
-    # LUMIA: pipe is unsafe (in list context), comma is unsafe
-    lumia = encode_lumen_llm([{"text": pipe_str}])
-    back  = decode_lumen_llm(lumia)
+    # ULMEN: pipe is unsafe (in list context), comma is unsafe
+    ulmen = encode_ulmen_llm([{"text": pipe_str}])
+    back  = decode_ulmen_llm(ulmen)
     assert back[0]["text"] == pipe_str
 
     # Binary: raw UTF-8, no escaping needed
@@ -1336,7 +1336,7 @@ test("AgentHeader has schema_version for negotiation [GAP #16]", _test_schema_ve
 
 def _test_unknown_header_line_is_graceful():
     # Forward compatibility: unknown header lines silently ignored
-    payload = "LUMEN-AGENT v1\nthread: t1\nunknown_future_field: xyz\nrecords: 0\n"
+    payload = "ULMEN-AGENT v1\nthread: t1\nunknown_future_field: xyz\nrecords: 0\n"
     recs, header = decode_agent_payload_full(payload)
     assert recs == []
     assert header.thread_id == "t1"

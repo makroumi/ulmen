@@ -1,12 +1,12 @@
 """
-LUMEN-AGENT LLM output parser and auto-repair.
+ULMEN-AGENT LLM output parser and auto-repair.
 
 parse_llm_output accepts raw text from an LLM (which may have minor
-formatting errors) and returns a valid LUMEN-AGENT v1 payload string.
+formatting errors) and returns a valid ULMEN-AGENT v1 payload string.
 
 Auto-repair strategies applied in order:
     1. Strip leading/trailing whitespace and markdown fences.
-    2. Locate the LUMEN-AGENT v1 magic line.
+    2. Locate the ULMEN-AGENT v1 magic line.
     3. Fix wrong records: count (off-by-one, under/over count).
     4. Remove blank data lines.
     5. Skip lines with unknown record types.
@@ -19,7 +19,7 @@ is returned instead.
 
 from __future__ import annotations
 
-AGENT_MAGIC = "LUMEN-AGENT v1"
+AGENT_MAGIC = "ULMEN-AGENT v1"
 
 
 def _strip_fences(text: str) -> str:
@@ -35,7 +35,7 @@ def _strip_fences(text: str) -> str:
 
 
 def _find_magic(lines: list[str]) -> int:
-    """Return the index of the LUMEN-AGENT v1 magic line, or -1."""
+    """Return the index of the ULMEN-AGENT v1 magic line, or -1."""
     for i, line in enumerate(lines):
         if line.strip() == AGENT_MAGIC:
             return i
@@ -62,8 +62,8 @@ def _repair_record_count(header_lines: list[str], data_lines: list[str]) -> list
 
 
 def _is_data_line(line: str) -> bool:
-    """Return True if line looks like a LUMEN-AGENT data row."""
-    from lumen.core._agent import RECORD_TYPES
+    """Return True if line looks like a ULMEN-AGENT data row."""
+    from ulmen.core._agent import RECORD_TYPES
     if not line or line.startswith("thread: ") or line.startswith("context"):
         return False
     parts = line.split("|", 1)
@@ -86,7 +86,7 @@ def parse_llm_output(
     strict: bool = False,
 ) -> str:
     """
-    Parse raw LLM output and return a valid LUMEN-AGENT v1 payload.
+    Parse raw LLM output and return a valid ULMEN-AGENT v1 payload.
 
     Applies auto-repair for common LLM output errors:
     - Markdown fences stripped
@@ -104,11 +104,11 @@ def parse_llm_output(
 
     Returns
     -------
-    Valid LUMEN-AGENT v1 payload string.
+    Valid ULMEN-AGENT v1 payload string.
     If repair fails and strict=False, returns a validation error payload.
     If repair fails and strict=True, raises ValueError.
     """
-    from lumen.core._agent import (
+    from ulmen.core._agent import (
         encode_agent_payload,
         make_validation_error,
         validate_agent_payload,
@@ -161,7 +161,7 @@ def parse_llm_output(
         return repaired
 
     # Step 7: last-resort — try to decode individual rows and re-encode
-    from lumen.core._agent import decode_agent_record
+    from ulmen.core._agent import decode_agent_record
     good_records = []
     meta_fields  = ()
 

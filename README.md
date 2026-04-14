@@ -1,4 +1,4 @@
-# LUMEN V1
+# ULMEN V1
 **Lightweight Universal Minimal Encoding Notation**
 
 Copyright (c) El Mehdi Makroumi. All rights reserved.
@@ -6,7 +6,7 @@ Proprietary and confidential.
 
 ---
 
-LUMEN is a serialization format engineered to be the smallest, fastest,
+ULMEN is a serialization format engineered to be the smallest, fastest,
 and most token-efficient way to move structured data between services,
 into storage, and through language model context windows.
 
@@ -45,11 +45,11 @@ Machine: x86_64 Linux, Python 3.12, rustc 1.92.
 | JSON | 145,664 | 100.0% |
 | Pickle protocol 4 | 62,177 | 42.7% |
 | CSV | 61,717 | 42.4% |
-| LUMIA text | 57,403 | 39.4% |
-| LUMEN text | 46,779 | 32.1% |
-| LUMEN binary | 32,701 | 22.4% |
-| LUMEN zlib-6 | 2,453 | 1.7% |
-| LUMEN zlib-9 | 2,450 | 1.7% |
+| ULMEN text | 57,403 | 39.4% |
+| ULMEN text | 46,779 | 32.1% |
+| ULMEN binary | 32,701 | 22.4% |
+| ULMEN zlib-6 | 2,453 | 1.7% |
+| ULMEN zlib-9 | 2,450 | 1.7% |
 
 Python and Rust produce byte-identical output.
 
@@ -59,18 +59,18 @@ Python and Rust produce byte-identical output.
 |---|---:|---:|
 | JSON | 2.137 | 2.771 |
 | Pickle protocol 4 | 0.644 | 0.807 |
-| LUMEN text (Python) | 19.707 | - |
-| LUMEN binary (Python) | 22.008 | 0.736 |
-| LUMEN zlib-6 (Python) | 22.251 | - |
-| LUMIA (Python) | 2.433 | 1.405 |
-| LUMEN text (Rust) | 1.726 | - |
-| LUMEN binary (Rust) | 1.721 | 0.738 |
-| LUMEN zlib-6 (Rust) | 2.109 | - |
-| LUMIA (Rust) | 5.697 | 1.397 |
+| ULMEN text (Python) | 19.707 | - |
+| ULMEN binary (Python) | 22.008 | 0.736 |
+| ULMEN zlib-6 (Python) | 22.251 | - |
+| ULMEN (Python) | 2.433 | 1.405 |
+| ULMEN text (Rust) | 1.726 | - |
+| ULMEN binary (Rust) | 1.721 | 0.738 |
+| ULMEN zlib-6 (Rust) | 2.109 | - |
+| ULMEN (Rust) | 5.697 | 1.397 |
 
 Rust acceleration: 12.8x faster binary encode, 11.4x faster text encode vs Python.
 
-LUMEN binary (Rust) encode is comparable to JSON encode while producing
+ULMEN binary (Rust) encode is comparable to JSON encode while producing
 output 4.5x smaller.
 
 ### Streaming (median 50 runs, 1,000 records)
@@ -86,7 +86,7 @@ Wire format identical to batch encode. Rust backend selected automatically.
 
 ## At a Glance
 
-| | LUMEN binary | LUMEN text | LUMIA | JSON |
+| | ULMEN binary | ULMEN text | ULMEN | JSON |
 |---|---|---|---|---|
 | Size vs JSON | 22.4% | 32.1% | 39.4% | 100% |
 | Zlib compressed | 1.7% | - | - | - |
@@ -100,7 +100,7 @@ Wire format identical to batch encode. Rust backend selected automatically.
 
 ## Surfaces
 
-LUMEN exposes four surfaces over a single data model:
+ULMEN exposes four surfaces over a single data model:
 
 ### Binary: `LUMB` prefix
 Columnar binary format. Smallest on wire. Designed for storage and IPC.
@@ -110,12 +110,12 @@ Supports delta encoding, bitpacking, RLE, string pooling, and zlib.
 Line-oriented, diff-friendly, human-readable. Compatible with standard
 text tools. Uses the same pool and strategy system as binary.
 
-### LUMIA: `L|` prefix
+### ULMEN: `L|` prefix
 LLM-native CSV surface. Every payload is self-describing via a typed
-header line. Language models can read and generate LUMIA without
+header line. Language models can read and generate ULMEN without
 special training or prompt engineering.
 
-### Streaming: `LumenStreamEncoder` / `stream_encode`
+### Streaming: `UlmenStreamEncoder` / `stream_encode`
 Zero-materialisation streaming encode surface. Feed records one at a time
 or in batches, then flush to an iterator of bytes chunks. The Rust backend
 is selected automatically. Wire format is identical to batch binary encode —
@@ -123,7 +123,7 @@ every chunk is independently decodable. For truly unbounded streams use
 `stream_encode_windowed` which encodes fixed-size windows into independent
 sub-payloads, each decodable standalone.
 
-### LUMEN-AGENT: `LUMEN-AGENT v1` prefix
+### ULMEN-AGENT: `ULMEN-AGENT v1` prefix
 Structured protocol for agentic AI communication. Typed record schemas
 for messages, tool calls, results, plans, observations, errors, memory,
 RAG chunks, hypotheses, and chain-of-thought steps.
@@ -141,7 +141,7 @@ Extended capabilities:
 - Cross-payload thread tracking via ThreadRegistry
 - Append-only audit trail via ReplayLog
 - Programmatic system prompt generation via generate_system_prompt
-- LUMIA bridge: convert_agent_to_lumia, convert_lumia_to_agent
+- ULMEN bridge: convert_agent_to_ulmen, convert_ulmen_to_agent
 - Structured validation errors via ValidationError
 - Context budget enforcement via ContextBudgetExceededError
 - Streaming decode via decode_agent_stream
@@ -156,8 +156,8 @@ Extended capabilities:
 ### From source (with Rust acceleration)
 
 ```bash
-git clone https://github.com/makroumi/lumen
-cd lumen
+git clone https://github.com/makroumi/ulmen
+cd ulmen
 pip install maturin
 maturin develop --release
 ```
@@ -174,7 +174,7 @@ The library detects automatically whether the Rust extension is available and fa
 ## Quick Start
 
 ```Python
-from lumen import LumenDict, LumenDictRust, encode_lumen_llm, decode_lumen_llm
+from ulmen import UlmenDict, UlmenDictRust, encode_ulmen_llm, decode_ulmen_llm
 
 records = [
     {"id": 1, "name": "Alice", "city": "London", "score": 98.5, "active": True},
@@ -183,28 +183,28 @@ records = [
 ]
 
 # Binary (smallest)
-ld     = LumenDict(records)
+ld     = UlmenDict(records)
 binary = ld.encode_binary_pooled()
 zlib_  = ld.encode_binary_zlib()
 
 # Text (human-readable)
 text = ld.encode_text()
 
-# LUMIA (LLM-native)
-lumia = encode_lumen_llm(records)
-back  = decode_lumen_llm(lumia)
+# ULMEN (LLM-native)
+ulmen = encode_ulmen_llm(records)
+back  = decode_ulmen_llm(ulmen)
 
 # Rust acceleration (drop-in, byte-identical)
-ld_rust = LumenDictRust(records)
+ld_rust = UlmenDictRust(records)
 binary  = ld_rust.encode_binary_pooled()
 text    = ld_rust.encode_text()
-lumia   = ld_rust.encode_lumen_llm()
+ulmen   = ld_rust.encode_ulmen_llm()
 ```
 
-## LUMEN-AGENT
+## ULMEN-AGENT
 
 ```python
-from lumen import (
+from ulmen import (
     encode_agent_payload,
     decode_agent_payload,
     decode_agent_payload_full,
@@ -219,8 +219,8 @@ from lumen import (
     ThreadRegistry,
     ReplayLog,
     generate_system_prompt,
-    convert_agent_to_lumia,
-    convert_lumia_to_agent,
+    convert_agent_to_ulmen,
+    convert_ulmen_to_agent,
     dedup_mem,
     get_latest_mem,
     estimate_context_usage,
@@ -240,11 +240,11 @@ records = [
     },
     {
         "type": "tool", "id": "tc1", "thread_id": "t1", "step": 2,
-        "name": "search", "args": '{"q":"lumen"}', "status": "pending",
+        "name": "search", "args": '{"q":"ulmen"}', "status": "pending",
     },
     {
         "type": "res", "id": "tc1", "thread_id": "t1", "step": 3,
-        "name": "search", "data": "LUMEN is fast", "status": "done",
+        "name": "search", "data": "ULMEN is fast", "status": "done",
         "latency_ms": 42,
     },
 ]
@@ -281,12 +281,12 @@ if not ok:
     print(err.message, err.row, err.field, err.suggestion)
 
 # Stream decode one record at a time
-from lumen import decode_agent_stream
+from ulmen import decode_agent_stream
 for rec in decode_agent_stream(iter(payload.splitlines(keepends=True))):
     print(rec["type"])
 
 # Context compression
-from lumen.core._agent import COMPRESS_COMPLETED_SEQUENCES
+from ulmen.core._agent import COMPRESS_COMPLETED_SEQUENCES
 compressed = compress_context(
     records,
     strategy=COMPRESS_COMPLETED_SEQUENCES,
@@ -335,9 +335,9 @@ log.append({"event": "encode", "payload_id": "pid-1"})
 # System prompt generation
 prompt = generate_system_prompt(include_examples=True, include_validation=True)
 
-# LUMIA bridge
-lumia   = convert_agent_to_lumia(payload)
-payload2 = convert_lumia_to_agent(lumia, thread_id="t1")
+# ULMEN bridge
+ulmen   = convert_agent_to_ulmen(payload)
+payload2 = convert_ulmen_to_agent(ulmen, thread_id="t1")
 
 # Validation error payload
 err_payload = make_validation_error("bad step", thread_id="t1")
@@ -352,21 +352,21 @@ except ContextBudgetExceededError as e:
 ---
 
 ## API Reference
-### LumenDict
+### UlmenDict
 Pure Python record container. Zero runtime dependencies.
 
 ```python
-ld = LumenDict(records)
+ld = UlmenDict(records)
 
-ld.encode_text()               # str   LUMEN text format
+ld.encode_text()               # str   ULMEN text format
 ld.encode_binary()             # bytes raw binary
 ld.encode_binary_pooled()      # bytes binary with full strategy selection
 ld.encode_binary_zlib(level=6) # bytes binary + zlib, level 0-9
-ld.encode_lumen_llm()          # str   LUMIA format
+ld.encode_ulmen_llm()          # str   ULMEN format
 
-ld.decode_text(text)           # LumenDict
-ld.decode_binary(data)         # LumenDict
-ld.decode_lumen_llm(text)      # LumenDict
+ld.decode_text(text)           # UlmenDict
+ld.decode_binary(data)         # UlmenDict
+ld.decode_ulmen_llm(text)      # UlmenDict
 
 ld.to_json()                   # str standard JSON (NaN/inf replaced with null)
 ld.append(record)              # mutate, rebuilds pool, invalidates cache
@@ -376,41 +376,41 @@ ld.pool_size                   # number of interned strings
 ld[0]                          # direct index access
 ```
 
-### LumenDictRust
+### UlmenDictRust
 Extended pool variant. Strategies always enabled.
 
 ```python
-ldf = LumenDictFull(records, pool_size_limit=256)
+ldf = UlmenDictFull(records, pool_size_limit=256)
 ldf.encode_binary()
 ldf.encode_text()
-ldf.encode_lumen_llm()
+ldf.encode_ulmen_llm()
 ```
 
-### LumenDictRust / LumenDictFullRust
+### UlmenDictRust / UlmenDictFullRust
 Rust-accelerated drop-in replacements. Byte-identical output.
 
 ```python
-from lumen import LumenDictRust, LumenDictFullRust, RUST_AVAILABLE
+from ulmen import UlmenDictRust, UlmenDictFullRust, RUST_AVAILABLE
 
 print(RUST_AVAILABLE)
-ld = LumenDictRust(records, optimizations=False, pool_size_limit=64)
+ld = UlmenDictRust(records, optimizations=False, pool_size_limit=64)
 ld.encode_text()
 ld.encode_binary_pooled()
 ld.encode_binary_zlib(level=6)
-ld.encode_lumen_llm()
+ld.encode_ulmen_llm()
 ```
 ### Streaming encode
 
-See `lumen.core._streaming` for full API.
+See `ulmen.core._streaming` for full API.
 
-    from lumen import LumenStreamEncoder, stream_encode, stream_encode_windowed
+    from ulmen import UlmenStreamEncoder, stream_encode, stream_encode_windowed
 
     # One-shot
     for chunk in stream_encode(records, chunk_size=65536):
         socket.sendall(chunk)
 
     # Stateful
-    enc = LumenStreamEncoder(pool_size_limit=64, chunk_size=65536)
+    enc = UlmenStreamEncoder(pool_size_limit=64, chunk_size=65536)
     enc.feed(record)
     enc.feed_many(records)
     for chunk in enc.flush():
@@ -424,9 +424,9 @@ See `lumen.core._streaming` for full API.
 ### Model-level encode/decode
 
 ```python
-from lumen import (
-    encode_lumen_llm,
-    decode_lumen_llm,
+from ulmen import (
+    encode_ulmen_llm,
+    decode_ulmen_llm,
     encode_binary_records,
     decode_binary_records,
     encode_text_records,
@@ -436,9 +436,9 @@ from lumen import (
 )
 ```
 
-### LUMEN-AGENT core
+### ULMEN-AGENT core
 ```python
-from lumen import (
+from ulmen import (
     encode_agent_payload,
     decode_agent_payload,
     decode_agent_payload_full,
@@ -475,8 +475,8 @@ from lumen import (
 ### Context compression
 
 ```python
-from lumen import compress_context, dedup_mem, get_latest_mem, estimate_context_usage
-from lumen.core._agent import (
+from ulmen import compress_context, dedup_mem, get_latest_mem, estimate_context_usage
+from ulmen.core._agent import (
     COMPRESS_COMPLETED_SEQUENCES,
     COMPRESS_KEEP_TYPES,
     COMPRESS_SLIDING_WINDOW,
@@ -505,7 +505,7 @@ Strategies:
 ### Unlimited context
 
 ```python
-from lumen import chunk_payload, merge_chunks, build_summary_chain
+from ulmen import chunk_payload, merge_chunks, build_summary_chain
 
 chunks = chunk_payload(
     records,
@@ -528,7 +528,7 @@ chain = build_summary_chain(
 ### LLM output repair
 
 ```python
-from lumen import parse_llm_output
+from ulmen import parse_llm_output
 
 repaired = parse_llm_output(raw_text)
 repaired = parse_llm_output(raw_text, thread_id="t1", strict=True)
@@ -539,7 +539,7 @@ Falls back to character estimate when tiktoken is unavailable.
 ### Multi-agent routing
 
 ```python
-from lumen import AgentRouter, validate_routing_consistency
+from ulmen import AgentRouter, validate_routing_consistency
 
 router = AgentRouter()
 router.register("agent_a", "agent_b", handler_fn)
@@ -552,7 +552,7 @@ ok, err = validate_routing_consistency(records)
 ### Cross-payload thread tracking
 
 ```python
-from lumen import ThreadRegistry, merge_threads
+from ulmen import ThreadRegistry, merge_threads
 
 registry = ThreadRegistry()
 registry.add_payload("pid-1", records)
@@ -564,7 +564,7 @@ merged = merge_threads([payload1_records, payload2_records])
 ### Audit trail
 
 ```python
-from lumen import ReplayLog
+from ulmen import ReplayLog
 
 log    = ReplayLog()
 log.append({"event": "encode", "ts": 1234})
@@ -574,7 +574,7 @@ events = log.all()
 ### System prompt generation
 
 ```python
-from lumen import generate_system_prompt
+from ulmen import generate_system_prompt
 
 prompt = generate_system_prompt(
     include_examples=True,
@@ -582,19 +582,19 @@ prompt = generate_system_prompt(
 )
 ```
 
-### LUMIA bridge
+### ULMEN bridge
 
 ```python
-from lumen import convert_agent_to_lumia, convert_lumia_to_agent
+from ulmen import convert_agent_to_ulmen, convert_ulmen_to_agent
 
-lumia   = convert_agent_to_lumia(agent_payload)
-payload = convert_lumia_to_agent(lumia, thread_id="t1")
+ulmen   = convert_agent_to_ulmen(agent_payload)
+payload = convert_ulmen_to_agent(ulmen, thread_id="t1")
 ```
 
 ### MessagePack compatibility
 
 ```python
-from lumen.core._msgpack_compat import encode_msgpack, decode_msgpack
+from ulmen.core._msgpack_compat import encode_msgpack, decode_msgpack
 
 packed   = encode_msgpack(records)
 unpacked = decode_msgpack(packed)
@@ -605,14 +605,14 @@ unpacked = decode_msgpack(packed)
 ## Wire Format Constants
 
 ```python
-from lumen import (
+from ulmen import (
     MAGIC,    # b'LUMB'
     VERSION,  # bytes([3, 3])
     T_STR_TINY, T_STR, T_INT, T_FLOAT, T_BOOL, T_NULL,
     T_LIST, T_MAP, T_POOL_DEF, T_POOL_REF, T_MATRIX,
     T_DELTA_RAW, T_BITS, T_RLE,
     S_RAW, S_DELTA, S_RLE, S_BITS, S_POOL,
-    AGENT_MAGIC,   # "LUMEN-AGENT v1"
+    AGENT_MAGIC,   # "ULMEN-AGENT v1"
     AGENT_VERSION, # "1.0.0"
     RECORD_TYPES,  # frozenset of 10 type tags
     FIELD_COUNTS,  # dict[type -> total field count per row including common fields]
@@ -631,7 +631,7 @@ from lumen import (
 ## Utilities
 
 ```python
-from lumen import (
+from ulmen import (
     estimate_tokens,   # rough LLM token count (chars / 4)
     deep_size,         # recursive memory footprint in bytes
     deep_eq,           # structural equality handling NaN and inf
@@ -644,7 +644,7 @@ from lumen import (
 ## Architecture
 
 ```text
-lumen/
+ulmen/
 ├── Cargo.lock
 ├── Cargo.toml
 ├── pyproject.toml
@@ -652,7 +652,7 @@ lumen/
 ├── SPEC.md
 ├── src/
 │   └── lib.rs
-├── lumen/
+├── ulmen/
 │   ├── __init__.py
 │   ├── core.py
 │   └── core/
@@ -662,7 +662,7 @@ lumen/
 │       ├── _strategies.py
 │       ├── _text.py
 │       ├── _binary.py
-│       ├── _lumen_llm.py
+│       ├── _ulmen_llm.py
 │       ├── _agent.py
 │       ├── _api.py
 │       ├── _repair.py
@@ -687,8 +687,8 @@ lumen/
 │       ├── test_agent.py
 │       ├── test_core_coverage.py
 │       ├── test_encoders.py
-│       ├── test_lumendict.py
-│       ├── test_lumen_llm.py
+│       ├── test_ulmendict.py
+│       ├── test_ulmen_llm.py
 │       ├── test_msgpack_compat.py
 │       ├── test_primitives.py
 │       ├── test_repair.py
@@ -706,7 +706,7 @@ lumen/
     ├── guides/
     │   ├── binary-format.md
     │   ├── text-format.md
-    │   ├── lumia.md
+    │   ├── ulmen.md
     │   └── compression.md
     ├── reference/
     │   ├── api.md
@@ -732,7 +732,7 @@ All encode results are cached after the first call and invalidated on mutation.
 
 ```bash
 pytest tests/ -v
-pytest tests/ --cov=lumen --cov-report=term-missing
+pytest tests/ --cov=ulmen --cov-report=term-missing
 ```
 1,364 tests across unit, integration, performance, and smoke suites.
 100% statement coverage across all modules.
@@ -742,8 +742,8 @@ All tests pass with and without the Rust extension.
 
 ## Format Specification
 See SPEC.md for the complete wire format specification including all tag
-values, encoding rules, strategy selection logic, and full LUMIA and
-LUMEN-AGENT protocol details.
+values, encoding rules, strategy selection logic, and full ULMEN and
+ULMEN-AGENT protocol details.
 
 ---
 

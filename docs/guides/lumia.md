@@ -1,6 +1,6 @@
-# LUMIA Guide
+# ULMEN Guide
 
-LUMIA is the LLM-native text surface of LUMEN. It is a typed, header-prefixed
+ULMEN is the LLM-native text surface of ULMEN. It is a typed, header-prefixed
 CSV format designed so language models can read and generate it without
 special training or prompt engineering.
 
@@ -22,14 +22,14 @@ L|col:type,col:type,... header line
 v1,v2,... data row, one per record
 ```
 The `L|` prefix is the magic identifier. It is always the first two
-characters of a LUMIA payload.
+characters of a ULMEN payload.
 
 ---
 
 ## Example
 
 ```python
-from lumen import encode_lumen_llm, decode_lumen_llm
+from ulmen import encode_ulmen_llm, decode_ulmen_llm
 
 records = [
     {"id": 1, "name": "Alice", "city": "London", "score": 98.5, "active": True},
@@ -37,8 +37,8 @@ records = [
     {"id": 3, "name": "Carol", "city": "Paris",  "score": 87.3, "active": True},
 ]
 
-lumia = encode_lumen_llm(records)
-print(lumia)
+ulmen = encode_ulmen_llm(records)
+print(ulmen)
 ```
 Output:
 ```text
@@ -49,7 +49,7 @@ L|id:d,name:s,city:s,score:f,active:b
 ```
 Decode:
 ```Python
-back = decode_lumen_llm(lumia)
+back = decode_ulmen_llm(ulmen)
 assert back == records
 ```
 
@@ -91,7 +91,7 @@ Strings containing any of ',' '"' '{' '}' '[' ']' '|' ':' '\n' '\r'
 are wrapped in double quotes. Internal double quotes are doubled.
 
 ```Python
-encode_lumen_llm([{"note": 'say "hello"'}])
+encode_ulmen_llm([{"note": 'say "hello"'}])
 # L|note:s
 # "say ""hello"""
 ```
@@ -109,7 +109,7 @@ Lists use `|` as separator inside `[]` to avoid collision with the
 comma row delimiter.
 
 ```Python
-encode_lumen_llm([{"tags": ["a", "b", "c"]}])
+encode_ulmen_llm([{"tags": ["a", "b", "c"]}])
 # L|tags:m
 # [a|b|c]
 ```
@@ -127,29 +127,29 @@ encode_lumen_llm([{"tags": ["a", "b", "c"]}])
 
 ## Rust Acceleration
 ```Python
-from lumen import LumenDictRust
+from ulmen import UlmenDictRust
 
-ld    = LumenDictRust(records)
-lumia = ld.encode_lumen_llm()
+ld    = UlmenDictRust(records)
+ulmen = ld.encode_ulmen_llm()
 ```
 The Rust encoder produces byte-identical output to the Python encoder.
 
 ---
 
 ## For Language Models
-An LLM receiving LUMIA should:
+An LLM receiving ULMEN should:
 
 1. Read the header line starting with L|
 2. Parse column names and type hints from the header
 3. Read each subsequent line as a comma-separated row
 4. Decode each cell using the type hint for that column
 
-An LLM generating LUMIA should:
+An LLM generating ULMEN should:
 
 1. Write L| followed by comma-separated name:type specs
 2. Write one comma-separated row per record
 3. Use the special tokens for null, bool, and empty string
 4. Quote any string containing a comma or double quote
 
-See [LUMEN-AGENT System Prompt](LUMEN-AGENT.md) for a
-complete LLM system prompt that includes LUMIA instructions.
+See [ULMEN-AGENT System Prompt](ULMEN-AGENT.md) for a
+complete LLM system prompt that includes ULMEN instructions.

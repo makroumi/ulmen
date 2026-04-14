@@ -4,7 +4,7 @@ Low-level codec functions for building custom encoders and decoders.
 All functions are pure: no state, no side effects.
 
 ```python
-from lumen import (
+from ulmen import (
     encode_varint, decode_varint,
     encode_zigzag, decode_zigzag,
     pack_string, pack_int, pack_float, pack_bool, pack_null, pack_pool_ref,
