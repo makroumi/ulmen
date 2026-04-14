@@ -2016,3 +2016,109 @@ class TestDecodeAgentRecordEmptyRow:
 
 
 
+
+class TestSchemaEvolution:
+    """100% coverage for validate_schema_compliance and migrate_schema."""
+
+    def _msg(self):
+        return {"type": "msg", "id": "m1", "thread_id": "t1", "step": 1,
+                "role": "user", "turn": 1, "content": "hi", "tokens": 5, "flagged": False}
+
+    # validate_schema_compliance ------------------------------------------
+
+    def test_valid_record(self):
+        from lumen import validate_schema_compliance
+        ok, err = validate_schema_compliance([self._msg()])
+        assert ok is True and err is None
+
+    def test_unknown_version_raises(self):
+        from lumen import validate_schema_compliance
+        import pytest
+        with pytest.raises(ValueError, match="Unknown schema version"):
+            validate_schema_compliance([self._msg()], schema_version="9.9.9")
+
+    def test_unknown_type(self):
+        from lumen import validate_schema_compliance
+        rec = {"type": "ghost", "id": "x", "thread_id": "t1", "step": 1}
+        ok, err = validate_schema_compliance([rec])
+        assert ok is False and "unknown type" in err
+
+    def test_missing_required_field(self):
+        from lumen import validate_schema_compliance
+        rec = self._msg()
+        del rec["role"]
+        ok, err = validate_schema_compliance([rec])
+        assert ok is False and "missing required field" in err and "role" in err
+
+    def test_forbidden_field(self):
+        from lumen import validate_schema_compliance
+        rec = self._msg()
+        rec["not_a_real_field"] = "oops"
+        ok, err = validate_schema_compliance([rec])
+        assert ok is False and "not_a_real_field" in err
+
+    def test_default_version_used_when_none(self):
+        from lumen import validate_schema_compliance
+        ok, err = validate_schema_compliance([self._msg()], schema_version=None)
+        assert ok is True
+
+    def test_meta_fields_allowed(self):
+        from lumen import validate_schema_compliance
+        rec = self._msg()
+        rec["from_agent"] = "agent_a"
+        rec["to_agent"] = "agent_b"
+        ok, err = validate_schema_compliance([rec])
+        assert ok is True
+
+    def test_empty_records_valid(self):
+        from lumen import validate_schema_compliance
+        ok, err = validate_schema_compliance([])
+        assert ok is True and err is None
+
+    # migrate_schema --------------------------------------------------------
+
+    def test_noop_same_version(self):
+        from lumen import migrate_schema
+        recs = [self._msg()]
+        result = migrate_schema(recs, "1.0.0", "1.0.0")
+        assert result is recs
+
+    def test_unknown_from_version_raises(self):
+        from lumen import migrate_schema
+        import pytest
+        with pytest.raises(ValueError, match="Unknown source schema version"):
+            migrate_schema([self._msg()], "0.0.0", "1.0.0")
+
+    def test_unknown_to_version_raises(self):
+        from lumen import migrate_schema
+        import pytest
+        with pytest.raises(ValueError, match="Unknown target schema version"):
+            migrate_schema([self._msg()], "1.0.0", "9.9.9")
+
+    def test_missing_migration_path_raises(self):
+        from lumen import migrate_schema
+        import lumen.core._agent as _agent_mod
+        import pytest
+        # Temporarily register a fake version
+        _agent_mod.SCHEMA_VERSIONS["1.1.0"] = _agent_mod.SCHEMA_VERSIONS["1.0.0"]
+        try:
+            with pytest.raises(ValueError, match="No migration path"):
+                migrate_schema([self._msg()], "1.0.0", "1.1.0")
+        finally:
+            del _agent_mod.SCHEMA_VERSIONS["1.1.0"]
+
+    def test_registered_migration_called(self):
+        from lumen import migrate_schema
+        import lumen.core._agent as _agent_mod
+        sentinel = [False]
+        def fake_migrate(records):
+            sentinel[0] = True
+            return records
+        _agent_mod.SCHEMA_VERSIONS["1.1.0"] = _agent_mod.SCHEMA_VERSIONS["1.0.0"]
+        _agent_mod._MIGRATIONS[("1.0.0", "1.1.0")] = fake_migrate
+        try:
+            result = migrate_schema([self._msg()], "1.0.0", "1.1.0")
+            assert sentinel[0] is True
+        finally:
+            del _agent_mod.SCHEMA_VERSIONS["1.1.0"]
+            del _agent_mod._MIGRATIONS[("1.0.0", "1.1.0")]

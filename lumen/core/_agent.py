@@ -102,6 +102,103 @@ _SCHEMAS: dict[str, list[tuple[str, str, bool]]] = {
 
 FIELD_COUNTS = {t: 4 + len(s) for t, s in _SCHEMAS.items()}
 
+# ---------------------------------------------------------------------------
+# Schema versioning — schema_version header field now gates field changes
+# ---------------------------------------------------------------------------
+
+DEFAULT_SCHEMA_VERSION = "1.0.0"
+
+# Registry of versioned schemas. Add new versions here when fields change.
+# Minor (1.x): new optional fields only — decoders remain backward compatible.
+# Major (x.0): breaking field changes — migration path required.
+SCHEMA_VERSIONS: dict[str, dict] = {
+    "1.0.0": _SCHEMAS,
+    # "1.1.0": _SCHEMAS_1_1_0,  # add optional fields
+    # "2.0.0": _SCHEMAS_2_0_0,  # breaking changes
+}
+
+_COMMON_FIELDS = frozenset({"type", "id", "thread_id", "step"})
+
+
+def validate_schema_compliance(
+    records: list[dict],
+    schema_version: str | None = None,
+) -> tuple[bool, str | None]:
+    """
+    Validate records conform to the declared schema version.
+
+    Returns (True, None) on success, (False, error_message) on failure.
+    Unknown schema_version raises ValueError immediately — callers must
+    explicitly handle version negotiation.
+    """
+    version = schema_version or DEFAULT_SCHEMA_VERSION
+    if version not in SCHEMA_VERSIONS:
+        raise ValueError(
+            f"Unknown schema version: {version!r}. "
+            f"Available: {sorted(SCHEMA_VERSIONS.keys())}"
+        )
+    schemas = SCHEMA_VERSIONS[version]
+    for i, record in enumerate(records):
+        rtype = record.get("type")
+        if rtype not in schemas:
+            return False, f"record[{i}]: unknown type {rtype!r} in schema {version}"
+        required = {name for name, _, req in schemas[rtype] if req}
+        allowed  = (
+            {name for name, _, _ in schemas[rtype]}
+            | _COMMON_FIELDS
+            | set(META_FIELDS)
+        )
+        for field in required:
+            if field not in record:
+                return False, (
+                    f"record[{i}] type={rtype!r}: "
+                    f"missing required field {field!r} (schema {version})"
+                )
+        for field in record:
+            if field not in allowed:
+                return False, (
+                    f"record[{i}] type={rtype!r}: "
+                    f"field {field!r} not in schema {version}"
+                )
+    return True, None
+
+
+def migrate_schema(
+    records: list[dict],
+    from_version: str,
+    to_version: str,
+) -> list[dict]:
+    """
+    Migrate records from one schema version to another.
+
+    Same-version is a no-op. Cross-version migration is registered
+    in _MIGRATIONS. Raises ValueError for unknown versions or missing
+    migration paths.
+
+    Add migration callables to _MIGRATIONS when introducing new versions::
+
+        _MIGRATIONS[("1.0.0", "1.1.0")] = _migrate_1_0_to_1_1
+    """
+    if from_version not in SCHEMA_VERSIONS:
+        raise ValueError(f"Unknown source schema version: {from_version!r}")
+    if to_version not in SCHEMA_VERSIONS:
+        raise ValueError(f"Unknown target schema version: {to_version!r}")
+    if from_version == to_version:
+        return records
+    key = (from_version, to_version)
+    if key not in _MIGRATIONS:
+        raise ValueError(
+            f"No migration path from {from_version!r} to {to_version!r}. "
+            f"Registered paths: {list(_MIGRATIONS.keys())}"
+        )
+    return _MIGRATIONS[key](records)
+
+
+# Migration registry: (from_version, to_version) -> callable(records) -> records
+_MIGRATIONS: dict[tuple[str, str], object] = {}
+# Example: _MIGRATIONS[("1.0.0", "1.1.0")] = _migrate_1_0_to_1_1
+
+
 _ENUMS: dict[str, frozenset] = {
     "msg.role":        frozenset(["user", "assistant", "system"]),
     "msg.flagged":     frozenset(["T", "F"]),

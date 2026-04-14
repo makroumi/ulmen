@@ -146,7 +146,12 @@ from lumen.core._agent import (
     make_validation_error,
     merge_chunks,
     validate_agent_payload,
+    validate_schema_compliance,
+    migrate_schema,
+    DEFAULT_SCHEMA_VERSION,
+    SCHEMA_VERSIONS,
 )
+
 
 # ---------------------------------------------------------------------------
 # Public API surface
@@ -182,6 +187,8 @@ __all__ = [
     "extract_subgraph", "extract_subgraph_payload",
     "make_validation_error",
     "AGENT_MAGIC", "AGENT_VERSION", "RECORD_TYPES", "FIELD_COUNTS",
+    "DEFAULT_SCHEMA_VERSION", "SCHEMA_VERSIONS",
+    "validate_schema_compliance", "migrate_schema",
     "META_FIELDS",
     "PRIORITY_MUST_KEEP", "PRIORITY_KEEP_IF_ROOM", "PRIORITY_COMPRESSIBLE",
     "COMPRESS_COMPLETED_SEQUENCES", "COMPRESS_KEEP_TYPES", "COMPRESS_SLIDING_WINDOW",
