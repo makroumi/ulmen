@@ -1,5 +1,5 @@
 """
-ULMEN V1 -- Lightweight Universal Minimal Encoding Notation
+ULMEN V1 -- Ultra Lightweight Minimal Encoding Notation
 Copyright (c) El Mehdi Makroumi. All rights reserved.
 Proprietary and confidential.
 

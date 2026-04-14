@@ -1,6 +1,6 @@
 # ULMEN V1 Documentation
 
-Lightweight Universal Minimal Encoding Notation
+Ultra Lightweight Minimal Encoding Notation
 
 Copyright (c) El Mehdi Makroumi. All rights reserved.
 Proprietary and confidential.

@@ -37,7 +37,7 @@
 - [8. Implementation Notes](#8-implementation-notes)
 
 
-**Lightweight Universal Minimal Encoding Notation**
+**Ultra Lightweight Minimal Encoding Notation**
 Copyright (c) El Mehdi Makroumi. All rights reserved.
 
 Version: 1.0.0

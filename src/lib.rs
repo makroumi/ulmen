@@ -1,4 +1,4 @@
-//! ULMEN V1 — Lightweight Universal Minimal Encoding Notation
+//! ULMEN V1 — Ultra Lightweight Minimal Encoding Notation
 //! Rust acceleration layer (PyO3)
 //!
 //! Copyright (c) El Mehdi Makroumi. All rights reserved.
@@ -388,10 +388,8 @@ fn detect_strat(vals: &[ColVal]) -> u8 {
         let mut overflow = false;
         'outer: for &v in vals {
             if let ColVal::Str(si) = v {
-                for j in 0..u {
-                    if small[j] == si {
-                        continue 'outer;
-                    }
+                if small[..u].contains(&si) {
+                    continue 'outer;
                 }
                 if u < 32 {
                     small[u] = si;
@@ -829,9 +827,9 @@ impl UlmenCore {
 
         let mut col_types = Vec::with_capacity(nc);
         let mut col_strats = Vec::with_capacity(nc);
-        for ci in 0..nc {
-            col_types.push(col_type_char(&cd[ci]));
-            col_strats.push(detect_strat(&cd[ci]));
+        for col in &cd {
+            col_types.push(col_type_char(col));
+            col_strats.push(detect_strat(col));
         }
 
         let (inline_cols, row_cols) = if nr <= 1 {
@@ -1010,6 +1008,7 @@ impl UlmenCore {
         self.cached_binary_zlib.as_ref().unwrap()
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn assemble_text(
         nr: usize,
         pl: &str,
@@ -1418,8 +1417,8 @@ impl UlmenStreamEncoder {
         let nc = self.keys.len();
         let mut row = vec![ColVal::Null; nc];
 
-        for ci in 0..nc {
-            let key = self.st.get(self.keys[ci]);
+        for (ci, &ki) in self.keys.iter().enumerate() {
+            let key = self.st.get(ki);
             let val = match d.get_item(key)? {
                 None => ColVal::Null,
                 Some(v) => {
@@ -1934,8 +1933,8 @@ fn decode_binary_records_rust<'py>(py: Python<'py>, data: &[u8]) -> PyResult<Bou
                     col_strats.push(cur.read_u8());
                 }
                 let mut col_data: Vec<Vec<Bound<'py, PyAny>>> = Vec::with_capacity(n_cols);
-                for ci in 0..n_cols {
-                    col_data.push(read_column(&mut cur, py, &pool, col_strats[ci], n_rows)?);
+                for &strat in &col_strats {
+                    col_data.push(read_column(&mut cur, py, &pool, strat, n_rows)?);
                 }
                 for ri in 0..n_rows {
                     let d = PyDict::new_bound(py);
