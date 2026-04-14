@@ -1,17 +1,22 @@
 """
-LUMEN v1.0.0 -- Lumex Ultra Absolute #1
-The number one serialization format across size, tokens, speed, and memory.
-LUMIA: the LLM-native text surface for zero-hallucination agent communication.
-LUMEN-AGENT: the structured agentic communication protocol.
+LUMEN V1 -- Lightweight Universal Minimal Encoding Notation
+Copyright (c) El Mehdi Makroumi. All rights reserved.
+Proprietary and confidential.
 
-Pure Python reference + optional Rust acceleration. Zero runtime dependencies.
+Three surfaces over a single data model:
+    Binary   -- smallest on wire, columnar, pool + strategies
+    Text     -- human-readable, diff-friendly
+    LUMIA    -- LLM-native typed CSV (L| prefix)
+
+Agentic protocol:
+    LUMEN-AGENT -- structured typed pipe-delimited agent communication
 
 Usage
 -----
-    from lumen import LumenDict, LumenDictFull
-    from lumen import LumenDictRust, LumenDictFullRust
+    from lumen import LumenDict, LumenDictRust
     from lumen import encode_lumen_llm, decode_lumen_llm
     from lumen import encode_agent_payload, decode_agent_payload
+    from lumen import compress_context, decode_agent_stream
 
     records = [{"id": i, "name": "Alice", "score": 98.5} for i in range(1000)]
 
@@ -21,6 +26,16 @@ Usage
     binary = ld.encode_binary_pooled()
     zlib_  = ld.encode_binary_zlib()
 """
+
+# ---------------------------------------------------------------------------
+# msgpack compatibility shim — zero external dependencies
+# Makes `import msgpack` available after `import lumen` for benchmarks.
+# ---------------------------------------------------------------------------
+import sys as _sys
+
+if 'msgpack' not in _sys.modules:
+    from lumen.core import _msgpack_compat as _mp_shim
+    _sys.modules['msgpack'] = _mp_shim
 
 import zlib as _zlib
 
@@ -94,20 +109,42 @@ from lumen.core import (
 )
 
 # ---------------------------------------------------------------------------
-# LUMEN-AGENT -- pure Python, always available, no Rust dependency
+# LUMEN-AGENT -- always available
 # ---------------------------------------------------------------------------
 from lumen.core._agent import (
     AGENT_MAGIC,
     AGENT_VERSION,
+    COMPRESS_COMPLETED_SEQUENCES,
+    COMPRESS_KEEP_TYPES,
+    COMPRESS_SLIDING_WINDOW,
     FIELD_COUNTS,
+    META_FIELDS,
+    PRIORITY_COMPRESSIBLE,
+    PRIORITY_KEEP_IF_ROOM,
+    PRIORITY_MUST_KEEP,
     RECORD_TYPES,
+    AgentHeader,
+    ContextBudgetExceededError,
+    ValidationError,
+    build_summary_chain,
+    chunk_payload,
+    compress_context,
+    convert_agent_to_lumia,
+    convert_lumia_to_agent,
     decode_agent_payload,
+    decode_agent_payload_full,
     decode_agent_record,
+    decode_agent_stream,
+    dedup_mem,
     encode_agent_payload,
     encode_agent_record,
+    estimate_context_usage,
     extract_subgraph,
     extract_subgraph_payload,
+    generate_system_prompt,
+    get_latest_mem,
     make_validation_error,
+    merge_chunks,
     validate_agent_payload,
 )
 
@@ -117,10 +154,7 @@ from lumen.core._agent import (
 
 __all__ = [
     # Core classes
-    "LumenDict",
-    "LumenDictFull",
-    "LumenDictRust",
-    "LumenDictFullRust",
+    "LumenDict", "LumenDictFull", "LumenDictRust", "LumenDictFullRust",
     "RUST_AVAILABLE",
     # Primitives
     "encode_varint", "decode_varint",
@@ -136,21 +170,41 @@ __all__ = [
     "encode_text_records", "decode_text_records",
     # Binary codec
     "encode_binary_records", "decode_binary_records",
-    # LUMIA -- LLM-native format
+    # LUMIA
     "encode_lumen_llm", "decode_lumen_llm", "LUMEN_LLM_MAGIC",
-    # LUMEN-AGENT -- agentic protocol
-    "encode_agent_payload", "decode_agent_payload",
+    # LUMEN-AGENT
+    "encode_agent_payload", "decode_agent_payload", "decode_agent_payload_full",
+    "decode_agent_record", "encode_agent_record",
+    "decode_agent_stream",
     "validate_agent_payload",
+    "compress_context",
+    "estimate_context_usage",
     "extract_subgraph", "extract_subgraph_payload",
     "make_validation_error",
-    "encode_agent_record", "decode_agent_record",
     "AGENT_MAGIC", "AGENT_VERSION", "RECORD_TYPES", "FIELD_COUNTS",
+    "META_FIELDS",
+    "PRIORITY_MUST_KEEP", "PRIORITY_KEEP_IF_ROOM", "PRIORITY_COMPRESSIBLE",
+    "COMPRESS_COMPLETED_SEQUENCES", "COMPRESS_KEEP_TYPES", "COMPRESS_SLIDING_WINDOW",
+    "AgentHeader",
+    "ContextBudgetExceededError",
+    "ValidationError",
+    "build_summary_chain",
+    "chunk_payload",
+    "convert_agent_to_lumia",
+    "convert_lumia_to_agent",
+    "decode_agent_record",
+    "decode_agent_stream",
+    "dedup_mem",
+    "encode_agent_record",
+    "generate_system_prompt",
+    "get_latest_mem",
+    "merge_chunks",
     # Utilities
     "fnv1a", "fnv1a_str", "estimate_tokens",
     "deep_size", "deep_eq",
     # Constants
     "MAGIC", "VERSION", "__version__", "__edition__",
-    # Text helpers (internal but exported for testing)
+    # Text helpers
     "_encode_value_text", "_encode_obj_iterative_text",
     "_text_escape", "_text_unescape",
     "_format_float", "_parse_value",
@@ -159,7 +213,35 @@ __all__ = [
     "T_LIST", "T_MAP", "T_POOL_DEF", "T_POOL_REF", "T_MATRIX",
     "T_DELTA_RAW", "T_BITS", "T_RLE",
     "S_RAW", "S_DELTA", "S_RLE", "S_BITS", "S_POOL",
+    # New capabilities
+    "count_tokens_exact", "count_tokens_exact_records",
+    "AgentRouter", "validate_routing_consistency",
+    "ThreadRegistry", "merge_threads",
+    "ReplayLog",
+    "parse_llm_output",
 ]
+
+# ---------------------------------------------------------------------------
+# New capability modules — zero dependencies
+# ---------------------------------------------------------------------------
+from lumen.core._repair import (
+    parse_llm_output,
+)
+from lumen.core._replay import (
+    ReplayLog,
+)
+from lumen.core._routing import (
+    AgentRouter,
+    validate_routing_consistency,
+)
+from lumen.core._threading import (
+    ThreadRegistry,
+    merge_threads,
+)
+from lumen.core._tokens import (
+    count_tokens_exact,
+    count_tokens_exact_records,
+)
 
 # ---------------------------------------------------------------------------
 # Rust acceleration -- optional, falls back to Python silently
@@ -174,7 +256,7 @@ try:
     from lumen._lumen_rust import encode_lumen_llm_rust as _ell_rust  # type: ignore
 
     def decode_binary_records(data: bytes) -> list:  # type: ignore[no-redef]
-        """Decode LUMEN binary data using the Rust-accelerated decoder."""
+        """Decode LUMEN binary using Rust-accelerated decoder."""
         return _dbr_rust(data)
 
     def encode_lumen_llm(records: list) -> str:  # type: ignore[no-redef]
@@ -190,11 +272,7 @@ try:
 except ImportError:  # pragma: no cover
 
     class LumenDictRust(LumenDict):  # type: ignore[no-redef]
-        """
-        Python shim for LumenDictRust.
-        Active only when the Rust extension is not compiled.
-        Build with: maturin develop --release
-        """
+        """Python shim for LumenDictRust when Rust extension is not compiled."""
 
         def encode_binary_pooled_raw(self) -> bytes:
             return encode_binary_records(
@@ -202,8 +280,12 @@ except ImportError:  # pragma: no cover
                 use_strategies=False,
             )
 
-        def encode_binary_zlib(self) -> bytes:  # type: ignore[override]
-            return _zlib.compress(self.encode_binary_pooled(), 6)
+        def encode_binary_zlib(self, level: int = 6) -> bytes:
+            return _zlib.compress(self.encode_binary_pooled(), level)
+
+        def encode_lumen_llm(self) -> str:
+            from lumen.core._lumen_llm import encode_lumen_llm as _enc
+            return _enc(self._data)
 
         def bench_encode_text_only(self, iters: int) -> int:
             return len(self.encode_text()) * iters
@@ -224,11 +306,7 @@ except ImportError:  # pragma: no cover
             )
 
     class LumenDictFullRust(LumenDictFull):  # type: ignore[no-redef]
-        """
-        Python shim for LumenDictFullRust.
-        Active only when the Rust extension is not compiled.
-        Build with: maturin develop --release
-        """
+        """Python shim for LumenDictFullRust when Rust extension is not compiled."""
 
         def encode_binary_pooled_raw(self) -> bytes:
             return encode_binary_records(
@@ -236,8 +314,12 @@ except ImportError:  # pragma: no cover
                 use_strategies=False,
             )
 
-        def encode_binary_zlib(self) -> bytes:  # type: ignore[override]
-            return _zlib.compress(self.encode_binary_pooled(), 6)
+        def encode_binary_zlib(self, level: int = 6) -> bytes:
+            return _zlib.compress(self.encode_binary_pooled(), level)
+
+        def encode_lumen_llm(self) -> str:
+            from lumen.core._lumen_llm import encode_lumen_llm as _enc
+            return _enc(self._data)
 
         def bench_encode_text_only(self, iters: int) -> int:
             return len(self.encode_text()) * iters
@@ -256,3 +338,27 @@ except ImportError:  # pragma: no cover
                 f"LumenDictFullRust[PythonShim]("
                 f"records={len(self._data)}, pool={len(self._pool)})"
             )
+
+# ---------------------------------------------------------------------------
+# LUMEN-AGENT Rust acceleration shims (GAP #5)
+# Python implementations exposed under Rust-named symbols for API compat.
+# ---------------------------------------------------------------------------
+
+def encode_agent_payload_rust(
+    records,
+    thread_id=None,
+    context_window=None,
+    meta_fields=(),
+    **kwargs,
+) -> str:
+    """LUMEN-AGENT encode with Rust-compatible API (Python implementation)."""
+    from lumen.core._agent import encode_agent_payload as _enc
+    return _enc(records, thread_id=thread_id,
+                context_window=context_window, meta_fields=meta_fields, **kwargs)
+
+
+def decode_agent_payload_rust(text: str):
+    """LUMEN-AGENT decode with Rust-compatible API (Python implementation)."""
+    from lumen.core._agent import decode_agent_payload as _dec
+    return _dec(text)
+

@@ -149,24 +149,109 @@ __all__ += [
 from lumen.core._agent import (
     AGENT_MAGIC,
     AGENT_VERSION,
+    COMPRESS_COMPLETED_SEQUENCES,
+    COMPRESS_KEEP_TYPES,
+    COMPRESS_SLIDING_WINDOW,
+    FIELD_COUNTS,
+    META_FIELDS,
+    PRIORITY_COMPRESSIBLE,
+    PRIORITY_KEEP_IF_ROOM,
+    PRIORITY_MUST_KEEP,
     RECORD_TYPES,
+    AgentHeader,
+    ContextBudgetExceededError,
+    ValidationError,
+    build_summary_chain,
+    chunk_payload,
+    compress_context,
+    convert_agent_to_lumia,
+    convert_lumia_to_agent,
     decode_agent_payload,
+    decode_agent_payload_full,
+    decode_agent_record,
+    decode_agent_stream,
+    dedup_mem,
     encode_agent_payload,
+    encode_agent_record,
+    estimate_context_usage,
     extract_subgraph,
     extract_subgraph_payload,
+    generate_system_prompt,
+    get_latest_mem,
     make_validation_error,
+    merge_chunks,
     validate_agent_payload,
 )
 from lumen.core._lumen_llm import LUMEN_LLM_MAGIC, decode_lumen_llm, encode_lumen_llm  # noqa: F811
 
 __all__ += [
-    "encode_agent_payload",
-    "decode_agent_payload",
-    "validate_agent_payload",
-    "extract_subgraph",
-    "extract_subgraph_payload",
-    "make_validation_error",
     "AGENT_MAGIC",
     "AGENT_VERSION",
+    "COMPRESS_COMPLETED_SEQUENCES",
+    "COMPRESS_KEEP_TYPES",
+    "COMPRESS_SLIDING_WINDOW",
+    "FIELD_COUNTS",
+    "META_FIELDS",
+    "PRIORITY_COMPRESSIBLE",
+    "PRIORITY_KEEP_IF_ROOM",
+    "PRIORITY_MUST_KEEP",
     "RECORD_TYPES",
+    "AgentHeader",
+    "ContextBudgetExceededError",
+    "ValidationError",
+    "build_summary_chain",
+    "chunk_payload",
+    "compress_context",
+    "convert_agent_to_lumia",
+    "convert_lumia_to_agent",
+    "decode_agent_payload",
+    "decode_agent_payload_full",
+    "decode_agent_record",
+    "decode_agent_stream",
+    "dedup_mem",
+    "encode_agent_payload",
+    "encode_agent_record",
+    "estimate_context_usage",
+    "extract_subgraph",
+    "extract_subgraph_payload",
+    "generate_system_prompt",
+    "get_latest_mem",
+    "make_validation_error",
+    "merge_chunks",
+    "validate_agent_payload",
 ]
+
+# ---------------------------------------------------------------------------
+# New capability modules — zero dependencies
+# ---------------------------------------------------------------------------
+
+from lumen.core._repair import (
+    parse_llm_output,
+)
+from lumen.core._replay import (
+    ReplayLog,
+)
+from lumen.core._routing import (
+    AgentRouter,
+    validate_routing_consistency,
+)
+from lumen.core._threading import (
+    ThreadRegistry,
+    merge_threads,
+)
+from lumen.core._tokens import (
+    count_tokens_exact,
+    count_tokens_exact_records,
+)
+
+__all__ += [
+    "count_tokens_exact",
+    "count_tokens_exact_records",
+    "AgentRouter",
+    "validate_routing_consistency",
+    "ThreadRegistry",
+    "merge_threads",
+    "ReplayLog",
+    "parse_llm_output",
+]
+

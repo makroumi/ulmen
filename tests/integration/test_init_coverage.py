@@ -65,3 +65,137 @@ class TestInitDecodeBinaryRecords:
         result = lumen.decode_binary_records(data)
         assert isinstance(result, list)
         assert result == [1, 2, 3]
+
+
+class TestInitRustShimFunctions:
+    """Covers lumen/__init__.py lines 341-342, 348-349."""
+
+    def test_encode_agent_payload_rust_basic(self):
+        from lumen import encode_agent_payload_rust, validate_agent_payload
+        records = [
+            {
+                "type": "msg", "id": "m1", "thread_id": "t1", "step": 1,
+                "role": "user", "turn": 1, "content": "hi",
+                "tokens": 1, "flagged": False,
+            }
+        ]
+        result = encode_agent_payload_rust(records, thread_id="t1")
+        assert "LUMEN-AGENT v1" in result
+        ok, _ = validate_agent_payload(result)
+        assert ok is True
+
+    def test_encode_agent_payload_rust_with_context_window(self):
+        from lumen import encode_agent_payload_rust
+        records = [
+            {
+                "type": "msg", "id": "m1", "thread_id": "t1", "step": 1,
+                "role": "user", "turn": 1, "content": "hi",
+                "tokens": 1, "flagged": False,
+            }
+        ]
+        result = encode_agent_payload_rust(
+            records, thread_id="t1", context_window=8000
+        )
+        assert "context_window: 8000" in result
+
+    def test_encode_agent_payload_rust_empty_records(self):
+        from lumen import encode_agent_payload_rust
+        result = encode_agent_payload_rust([], thread_id="t1")
+        assert "records: 0" in result
+
+    def test_encode_agent_payload_rust_kwargs_passed(self):
+        from lumen import encode_agent_payload_rust
+        records = [
+            {
+                "type": "msg", "id": "m1", "thread_id": "t1", "step": 1,
+                "role": "user", "turn": 1, "content": "hi",
+                "tokens": 1, "flagged": False,
+            }
+        ]
+        result = encode_agent_payload_rust(
+            records, thread_id="t1", auto_payload_id=True
+        )
+        assert "LUMEN-AGENT v1" in result
+
+    def test_decode_agent_payload_rust_basic(self):
+        from lumen import decode_agent_payload_rust, encode_agent_payload
+        payload = encode_agent_payload(
+            [
+                {
+                    "type": "msg", "id": "m1", "thread_id": "t1", "step": 1,
+                    "role": "user", "turn": 1, "content": "hi",
+                    "tokens": 1, "flagged": False,
+                }
+            ],
+            thread_id="t1",
+        )
+        records = decode_agent_payload_rust(payload)
+        assert len(records) == 1
+        assert records[0]["type"] == "msg"
+
+    def test_decode_agent_payload_rust_empty(self):
+        from lumen import decode_agent_payload_rust, encode_agent_payload
+        payload = encode_agent_payload([], thread_id="t1")
+        records = decode_agent_payload_rust(payload)
+        assert records == []
+
+    def test_decode_agent_payload_rust_multiple_records(self):
+        from lumen import decode_agent_payload_rust, encode_agent_payload
+        recs = [
+            {
+                "type": "msg", "id": f"m{i}", "thread_id": "t1", "step": i + 1,
+                "role": "user", "turn": i + 1, "content": "hi",
+                "tokens": 1, "flagged": False,
+            }
+            for i in range(5)
+        ]
+        payload = encode_agent_payload(recs, thread_id="t1")
+        records = decode_agent_payload_rust(payload)
+        assert len(records) == 5
+
+    def test_encode_decode_rust_round_trip(self):
+        from lumen import decode_agent_payload_rust, encode_agent_payload_rust
+        original = [
+            {
+                "type": "msg", "id": "m1", "thread_id": "t1", "step": 1,
+                "role": "user", "turn": 1, "content": "hello",
+                "tokens": 1, "flagged": False,
+            }
+        ]
+        encoded = encode_agent_payload_rust(original, thread_id="t1")
+        decoded = decode_agent_payload_rust(encoded)
+        assert decoded[0]["content"] == "hello"
+        assert decoded[0]["id"] == "m1"
+
+
+class TestApiRecordCount:
+    """Covers lumen/core/_api.py lines 108 and 113: pool_size and record_count properties."""
+
+    def test_pool_size_property(self):
+        from lumen.core._api import LumenDict
+        recs = [{"tag": "Engineering"}] * 10
+        ld = LumenDict(recs)
+        assert ld.pool_size == len(ld._pool)
+        assert isinstance(ld.pool_size, int)
+
+    def test_pool_size_empty(self):
+        from lumen.core._api import LumenDict
+        ld = LumenDict([])
+        assert ld.pool_size == 0
+
+    def test_record_count_property(self):
+        from lumen.core._api import LumenDict
+        recs = [{"id": i} for i in range(7)]
+        ld = LumenDict(recs)
+        assert ld.record_count == 7
+
+    def test_record_count_empty(self):
+        from lumen.core._api import LumenDict
+        ld = LumenDict([])
+        assert ld.record_count == 0
+
+    def test_record_count_matches_len(self):
+        from lumen.core._api import LumenDict
+        recs = [{"id": i} for i in range(5)]
+        ld = LumenDict(recs)
+        assert ld.record_count == len(ld)
