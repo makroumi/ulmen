@@ -175,7 +175,7 @@ fn zz_cost(n: i64) -> u32 {
         return 1;
     }
     let bits = 64 - z.leading_zeros();
-    (bits + 6) / 7
+    bits.div_ceil(7)
 }
 
 // ---------------------------------------------------------------------------
@@ -928,7 +928,11 @@ impl LumenCore {
             &st,
             &col_strats,
             &binary_pool_block,
-            if nr == 1 { &col_bodies_raw } else { &col_bodies_strat },
+            if nr == 1 {
+                &col_bodies_raw
+            } else {
+                &col_bodies_strat
+            },
             true,
         );
         let cached_binary_raw = Self::assemble_binary(
@@ -1396,9 +1400,9 @@ impl LumenStreamEncoder {
     }
 
     /// Feed one record dict. Must be called before finish().
-    fn feed_record(&mut self, py: Python<'_>, record: &Bound<'_, PyDict>) -> PyResult<()> {
+    fn feed_record(&mut self, _py: Python<'_>, record: &Bound<'_, PyDict>) -> PyResult<()> {
         let d = record;
-        let nc_existing = self.keys.len();
+        let _nc_existing = self.keys.len();
 
         // First record: establish schema
         if !self.has_schema {
@@ -1457,7 +1461,7 @@ impl LumenStreamEncoder {
         }
 
         // Transpose rows -> columns
-        let mut cd: Vec<Vec<ColVal>> = (0..nc)
+        let cd: Vec<Vec<ColVal>> = (0..nc)
             .map(|ci| self.rows.iter().map(|row| row[ci]).collect())
             .collect();
 
@@ -1496,7 +1500,11 @@ impl LumenStreamEncoder {
         } else {
             Vec::new()
         };
-        let col_bodies = if nr == 1 { &col_bodies_raw } else { &col_bodies_strat };
+        let col_bodies = if nr == 1 {
+            &col_bodies_raw
+        } else {
+            &col_bodies_strat
+        };
 
         // Assemble full payload into a staging buffer
         let pool_block = build_binary_pool_block(&pool, &self.st);
@@ -1565,7 +1573,7 @@ fn encode_binary_stream_chunked<'py>(
     }
 
     let ws = window_size.max(1);
-    let mut result = Vec::with_capacity((nr + ws - 1) / ws);
+    let mut result = Vec::with_capacity(nr.div_ceil(ws));
 
     let mut i = 0;
     while i < nr {
@@ -1726,7 +1734,7 @@ impl<'a> Cursor<'a> {
             }
             T_BITS => {
                 let n = self.read_varint() as usize;
-                let n_bytes = (n + 7) / 8;
+                let n_bytes = n.div_ceil(8);
                 let arr = self.read_bytes(n_bytes);
                 let list = PyList::empty_bound(py);
                 for i in 0..n {
@@ -1791,7 +1799,7 @@ fn read_column<'py>(
                 )));
             }
             let n = cur.read_varint() as usize;
-            let n_bytes = (n + 7) / 8;
+            let n_bytes = n.div_ceil(8);
             let arr = cur.read_bytes(n_bytes);
             let mut out = Vec::with_capacity(n);
             for i in 0..n {
@@ -2177,7 +2185,7 @@ fn llm_type_and_encode(v: &Bound<'_, PyAny>, out: &mut String) -> PyResult<LlmCo
 }
 
 #[pyfunction]
-fn encode_lumen_llm_rust(py: Python<'_>, data: &Bound<'_, PyList>) -> PyResult<String> {
+fn encode_lumen_llm_rust(_py: Python<'_>, data: &Bound<'_, PyList>) -> PyResult<String> {
     let nr = data.len();
     if nr == 0 {
         return Ok("L|".to_string());
@@ -2352,7 +2360,7 @@ fn llm_row_is_plain(row: &str) -> bool {
     !row.contains('"') && !row.contains('{') && !row.contains('[')
 }
 
-fn llm_split_top_level<'a>(s: &'a str, sep: char) -> Vec<&'a str> {
+fn llm_split_top_level(s: &str, sep: char) -> Vec<&str> {
     let mut parts = Vec::new();
     let mut depth = 0i32;
     let mut in_quote = false;
