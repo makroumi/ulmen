@@ -261,7 +261,7 @@ class TestStreamingMeasurements:
     """
 
     def test_streaming_report(self, capsys):
-        from ulmen._ulmen_rust import decode_binary_records_rust
+        from ulmen import decode_binary_records as decode_binary_records_rust
 
         from ulmen.core._streaming import stream_encode, stream_encode_windowed
 
