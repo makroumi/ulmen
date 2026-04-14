@@ -2106,9 +2106,8 @@ fn llm_type_and_encode(v: &Bound<'_, PyAny>, out: &mut String) -> PyResult<LlmCo
         return Ok(LlmColType::Null);
     }
     let binding = v.get_type();
-    let type_name = binding.qualname()?;
-    let type_name_str = type_name.to_str()?;
-    match type_name_str {
+    let type_name = binding.name()?;
+    match type_name.as_ref() {
         "bool" => {
             out.push(if v.is_truthy()? { 'T' } else { 'F' });
             Ok(LlmColType::Bool)
