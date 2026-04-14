@@ -54,10 +54,12 @@ jobs:
       - name: Install Python dependencies
         run: pip install maturin pytest pytest-cov
 
-      - name: Build Rust extension
+      - name: Build and install Rust extension
         run: |
-          maturin build --release --out dist
-          pip install dist/*.whl
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install maturin pytest pytest-cov
+          maturin develop --release
 
       - name: Run tests with coverage
         run: |
