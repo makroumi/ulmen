@@ -12,8 +12,9 @@ Every line in _streaming.py is exercised explicitly.
 """
 from __future__ import annotations
 
-import pytest
-
+from lumen import RUST_AVAILABLE
+from lumen.core._binary import decode_binary_records
+from lumen.core._lumen_llm import decode_lumen_llm
 from lumen.core._streaming import (
     LumenStreamEncoder,
     _PyStreamEncoder,
@@ -21,10 +22,6 @@ from lumen.core._streaming import (
     stream_encode_lumia,
     stream_encode_windowed,
 )
-from lumen.core._binary import decode_binary_records
-from lumen.core._lumen_llm import decode_lumen_llm
-from lumen import RUST_AVAILABLE
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -876,7 +873,6 @@ class TestModuleLevelImports:
     def test_import_fallback_when_rust_unavailable(self):
         """Lines 38-40: cover the except ImportError branch by blocking the .so."""
         import sys
-        import importlib
 
         # Remove cached modules so reimport runs the try/except block fresh
         saved = {}

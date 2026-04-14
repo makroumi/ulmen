@@ -219,6 +219,11 @@ __all__ = [
     "ThreadRegistry", "merge_threads",
     "ReplayLog",
     "parse_llm_output",
+    # Streaming
+    "LumenStreamEncoder",
+    "stream_encode",
+    "stream_encode_lumia",
+    "stream_encode_windowed",
 ]
 
 # ---------------------------------------------------------------------------

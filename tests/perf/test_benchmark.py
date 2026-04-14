@@ -261,8 +261,9 @@ class TestStreamingMeasurements:
     """
 
     def test_streaming_report(self, capsys):
-        from lumen.core._streaming import stream_encode, stream_encode_windowed
         from lumen._lumen_rust import decode_binary_records_rust
+
+        from lumen.core._streaming import stream_encode, stream_encode_windowed
 
         recs_1k  = [make_record(i) for i in range(1_000)]
         recs_10k = [make_record(i) for i in range(10_000)]
@@ -298,7 +299,7 @@ class TestStreamingMeasurements:
         print(f"{'stream_windowed(10k, ws=100)':.<36} {t_window_10k:>8.3f} {'—':>8} {'—':>8}")
         print("=" * 66)
         print(f"  Payload sizes: 1k={len(payload_1k):,}B  10k={len(payload_10k):,}B")
-        print(f"  Wire format identical to batch encode: yes")
+        print("  Wire format identical to batch encode: yes")
         print("=" * 66)
 
         assert len(payload_1k) == len(RECORDS_1K and _stream_payload(RECORDS_1K))

@@ -141,7 +141,7 @@ class LumenStreamEncoder:
             )
             self._rust = False
 
-    def feed(self, record: dict) -> "LumenStreamEncoder":
+    def feed(self, record: dict) -> LumenStreamEncoder:
         """Feed one record dict. Returns self for chaining."""
         if self._rust:
             self._inner.feed_record(record)
@@ -149,7 +149,7 @@ class LumenStreamEncoder:
             self._inner.feed(record)
         return self
 
-    def feed_many(self, records: Iterable[dict]) -> "LumenStreamEncoder":
+    def feed_many(self, records: Iterable[dict]) -> LumenStreamEncoder:
         """Feed an iterable of record dicts. Returns self for chaining."""
         if self._rust:
             lst = list(records)

@@ -262,8 +262,8 @@ __all__ += [
 from lumen.core._streaming import (
     LumenStreamEncoder,
     stream_encode,
-    stream_encode_windowed,
     stream_encode_lumia,
+    stream_encode_windowed,
 )
 
 __all__ += [
