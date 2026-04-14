@@ -182,11 +182,20 @@ count_tokens_exact_records counts tokens across a list of agent records by encod
 MessagePack compatibility layer. encode_msgpack and decode_msgpack
 provide a MessagePack-compatible wire format for interoperability with systems that consume MessagePack.
 
+### `lumen/core/_streaming.py`
+Streaming binary encode surface. `LumenStreamEncoder` accumulates records
+via `feed` / `feed_many` then yields bytes chunks from `flush` / `finish`.
+Automatically selects the Rust backend when available (`_RUST_STREAM`).
+`stream_encode` is the one-shot helper. `stream_encode_windowed` processes
+fixed-size windows into independent decodable sub-payloads for truly
+unbounded streams. `stream_encode_lumia` streams the LUMIA text format.
+
 ### `src/lib.rs`
 
 Rust acceleration layer. Registered as `lumen._lumen_rust` via PyO3.
-Exposes `LumenDictRust`, `LumenDictFullRust`, `decode_binary_records_rust`,
-`encode_lumen_llm_rust`, `decode_lumen_llm_rust`.
+Exposes `LumenDictRust`, `LumenDictFullRust`, `LumenStreamEncoder`,
+`decode_binary_records_rust`, `encode_lumen_llm_rust`,
+`decode_lumen_llm_rust`, `encode_binary_stream_chunked`.
 
 Output is byte-identical to the Python reference for all surfaces.
 The Python layer is the normative specification.

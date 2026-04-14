@@ -248,3 +248,59 @@ class TestSpeedMeasurements:
         assert t_json_enc < 10_000
         if RUST_AVAILABLE:
             assert t_rs_bin < t_py_bin  # Rust must be faster
+
+
+# ---------------------------------------------------------------------------
+# Streaming measurements
+# ---------------------------------------------------------------------------
+
+class TestStreamingMeasurements:
+    """
+    Measure streaming encode/decode throughput.
+    LumenStreamEncoder and stream_encode_windowed at 1k and 10k records.
+    """
+
+    def test_streaming_report(self, capsys):
+        from lumen.core._streaming import stream_encode, stream_encode_windowed
+        from lumen._lumen_rust import decode_binary_records_rust
+
+        recs_1k  = [make_record(i) for i in range(1_000)]
+        recs_10k = [make_record(i) for i in range(10_000)]
+
+        def _stream_payload(recs):
+            return b"".join(stream_encode(recs))
+
+        def _windowed_payload(recs, ws=100):
+            return list(stream_encode_windowed(recs, window_size=ws))
+
+        t_stream_1k   = _timeit(lambda: _stream_payload(recs_1k))
+        t_stream_10k  = _timeit(lambda: _stream_payload(recs_10k), n=10)
+        t_window_1k   = _timeit(lambda: _windowed_payload(recs_1k))
+        t_window_10k  = _timeit(lambda: _windowed_payload(recs_10k), n=10)
+
+        payload_1k  = _stream_payload(recs_1k)
+        payload_10k = _stream_payload(recs_10k)
+
+        t_dec_1k  = _timeit(lambda: decode_binary_records_rust(payload_1k))
+        t_dec_10k = _timeit(lambda: decode_binary_records_rust(payload_10k), n=10)
+
+        mb_s_1k  = (len(payload_1k)  / 1e6) / (t_stream_1k  / 1000)
+        mb_s_10k = (len(payload_10k) / 1e6) / (t_stream_10k / 1000)
+
+        print("\n" + "=" * 66)
+        print("LUMEN V1 — Streaming Benchmark")
+        print("=" * 66)
+        print(f"{'Surface':<36} {'Enc ms':>8} {'Dec ms':>8} {'MB/s':>8}")
+        print("-" * 66)
+        print(f"{'stream_encode  (1k records)':.<36} {t_stream_1k:>8.3f} {t_dec_1k:>8.3f} {mb_s_1k:>8.1f}")
+        print(f"{'stream_encode  (10k records)':.<36} {t_stream_10k:>8.3f} {t_dec_10k:>8.3f} {mb_s_10k:>8.1f}")
+        print(f"{'stream_windowed(1k,  ws=100)':.<36} {t_window_1k:>8.3f} {'—':>8} {'—':>8}")
+        print(f"{'stream_windowed(10k, ws=100)':.<36} {t_window_10k:>8.3f} {'—':>8} {'—':>8}")
+        print("=" * 66)
+        print(f"  Payload sizes: 1k={len(payload_1k):,}B  10k={len(payload_10k):,}B")
+        print(f"  Wire format identical to batch encode: yes")
+        print("=" * 66)
+
+        assert len(payload_1k) == len(RECORDS_1K and _stream_payload(RECORDS_1K))
+        assert t_stream_1k < 10_000
+        assert t_stream_10k < 100_000

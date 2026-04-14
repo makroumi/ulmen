@@ -362,3 +362,13 @@ def decode_agent_payload_rust(text: str):
     from lumen.core._agent import decode_agent_payload as _dec
     return _dec(text)
 
+
+# ---------------------------------------------------------------------------
+# Streaming encode surface
+# ---------------------------------------------------------------------------
+from lumen.core._streaming import (
+    LumenStreamEncoder,
+    stream_encode,
+    stream_encode_lumia,
+    stream_encode_windowed,
+)

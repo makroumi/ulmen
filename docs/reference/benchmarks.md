@@ -84,3 +84,33 @@ real first-call cost.
 and is not a general-purpose interoperable format.
 - CSV does not encode booleans, nulls, or nested structures natively.
 The CSV size here is for the flat string representation only.
+---
+
+## Streaming
+
+Streaming surfaces never materialise the full payload before the first byte
+is emitted. Wire format is identical to batch encode — every chunk is a valid
+independently-decodable LUMEN binary payload.
+
+Machine: x86_64 Linux, Python 3.12.13, rustc 1.92.0
+Dataset: mixed-type records (int, float, str, bool), median 50 runs (1k) / 10 runs (10k)
+
+| Surface | Records | Encode ms | Decode ms | MB/s |
+|---|---|---|---|---|
+| `stream_encode` | 1,000 | 2.298 | 0.726 | 14.2 |
+| `stream_encode` | 10,000 | 24.889 | 9.448 | 13.4 |
+| `stream_encode_windowed` (ws=100) | 1,000 | 1.660 | — | — |
+| `stream_encode_windowed` (ws=100) | 10,000 | 16.560 | — | — |
+
+Payload sizes: 1k = 32,701 B · 10k = 334,606 B
+
+### Notes
+
+- `stream_encode` accumulates records then slices the encoded payload into
+  `chunk_size` chunks (default 64 KiB). The Rust backend is used automatically
+  when available — Python and Rust paths produce identical wire bytes.
+- `stream_encode_windowed` encodes fixed-size windows into independent
+  sub-payloads. Each sub-payload is decodable standalone with
+  `decode_binary_records`. Use this for truly unbounded streams where even
+  the column scan must be bounded.
+- Decode timings use `decode_binary_records_rust` on the reassembled payload.

@@ -255,3 +255,20 @@ __all__ += [
     "parse_llm_output",
 ]
 
+
+# ---------------------------------------------------------------------------
+# Streaming encode surface
+# ---------------------------------------------------------------------------
+from lumen.core._streaming import (
+    LumenStreamEncoder,
+    stream_encode,
+    stream_encode_windowed,
+    stream_encode_lumia,
+)
+
+__all__ += [
+    "LumenStreamEncoder",
+    "stream_encode",
+    "stream_encode_windowed",
+    "stream_encode_lumia",
+]

@@ -57,21 +57,30 @@ Python and Rust produce byte-identical output.
 
 | Format | Encode ms | Decode ms |
 |---|---:|---:|
-| JSON | 1.264 | 1.849 |
-| Pickle protocol 4 | 0.369 | 0.497 |
-| LUMEN text (Python) | 12.005 | - |
-| LUMEN binary (Python) | 13.579 | 0.479 |
-| LUMEN zlib-6 (Python) | 13.693 | - |
-| LUMIA (Python) | 1.511 | 0.833 |
-| LUMEN text (Rust) | 1.018 | - |
-| LUMEN binary (Rust) | 1.013 | 0.475 |
-| LUMEN zlib-6 (Rust) | 1.243 | - |
-| LUMIA (Rust) | 3.497 | 0.830 |
+| JSON | 2.137 | 2.771 |
+| Pickle protocol 4 | 0.644 | 0.807 |
+| LUMEN text (Python) | 19.707 | - |
+| LUMEN binary (Python) | 22.008 | 0.736 |
+| LUMEN zlib-6 (Python) | 22.251 | - |
+| LUMIA (Python) | 2.433 | 1.405 |
+| LUMEN text (Rust) | 1.726 | - |
+| LUMEN binary (Rust) | 1.721 | 0.738 |
+| LUMEN zlib-6 (Rust) | 2.109 | - |
+| LUMIA (Rust) | 5.697 | 1.397 |
 
-Rust acceleration: 13.4x faster binary encode, 11.8x faster text encode vs Python.
+Rust acceleration: 12.8x faster binary encode, 11.4x faster text encode vs Python.
 
 LUMEN binary (Rust) encode is comparable to JSON encode while producing
 output 4.5x smaller.
+
+### Streaming (median 50 runs, 1,000 records)
+
+| Surface | Encode ms | Decode ms | MB/s |
+|---|---:|---:|---:|
+| `stream_encode` | 2.298 | 0.726 | 14.2 |
+| `stream_encode_windowed` (ws=100) | 1.660 | — | — |
+
+Wire format identical to batch encode. Rust backend selected automatically.
 
 ---
 
@@ -81,8 +90,8 @@ output 4.5x smaller.
 |---|---|---|---|---|
 | Size vs JSON | 22.4% | 32.1% | 39.4% | 100% |
 | Zlib compressed | 1.7% | - | - | - |
-| Rust encode (ms) | 1.013 | 1.018 | 3.497 | 1.264 |
-| Python encode (ms) | 13.579 | 12.005 | 1.511 | 1.264 |
+| Rust encode (ms) | 1.721 | 1.726 | 5.697 | 2.137 |
+| Python encode (ms) | 22.008 | 19.707 | 2.433 | 2.137 |
 | Self-describing | yes | yes | yes | yes |
 | LLM-generatable | - | - | yes | partial |
 | Round-trip exact | yes | yes | yes | no (NaN/inf) |
@@ -105,6 +114,14 @@ text tools. Uses the same pool and strategy system as binary.
 LLM-native CSV surface. Every payload is self-describing via a typed
 header line. Language models can read and generate LUMIA without
 special training or prompt engineering.
+
+### Streaming: `LumenStreamEncoder` / `stream_encode`
+Zero-materialisation streaming encode surface. Feed records one at a time
+or in batches, then flush to an iterator of bytes chunks. The Rust backend
+is selected automatically. Wire format is identical to batch binary encode —
+every chunk is independently decodable. For truly unbounded streams use
+`stream_encode_windowed` which encodes fixed-size windows into independent
+sub-payloads, each decodable standalone.
 
 ### LUMEN-AGENT: `LUMEN-AGENT v1` prefix
 Structured protocol for agentic AI communication. Typed record schemas
@@ -382,6 +399,28 @@ ld.encode_binary_pooled()
 ld.encode_binary_zlib(level=6)
 ld.encode_lumen_llm()
 ```
+### Streaming encode
+
+See `lumen.core._streaming` for full API.
+
+    from lumen import LumenStreamEncoder, stream_encode, stream_encode_windowed
+
+    # One-shot
+    for chunk in stream_encode(records, chunk_size=65536):
+        socket.sendall(chunk)
+
+    # Stateful
+    enc = LumenStreamEncoder(pool_size_limit=64, chunk_size=65536)
+    enc.feed(record)
+    enc.feed_many(records)
+    for chunk in enc.flush():
+        sink.write(chunk)
+    print(enc.rust_backed)  # True when Rust extension active
+
+    # Unbounded windowed
+    for chunk in stream_encode_windowed(records, window_size=1000):
+        decode_binary_records(chunk)
+
 ### Model-level encode/decode
 
 ```python
@@ -631,7 +670,8 @@ lumen/
 │       ├── _routing.py
 │       ├── _threading.py
 │       ├── _tokens.py
-│       └── _msgpack_compat.py
+│       ├── _msgpack_compat.py
+│       └── _streaming.py
 ├── tests/
 │   ├── conftest.py
 │   ├── smoke_test_comprehensive.py
@@ -655,6 +695,7 @@ lumen/
 │       ├── test_replay.py
 │       ├── test_routing.py
 │       ├── test_strategies.py
+│       ├── test_streaming.py
 │       ├── test_threading.py
 │       └── test_tokens.py
 └── docs/
@@ -687,13 +728,13 @@ All encode results are cached after the first call and invalidated on mutation.
 
 ---
 
-## Runing Tests
+## Running Tests
 
 ```bash
 pytest tests/ -v
 pytest tests/ --cov=lumen --cov-report=term-missing
 ```
-1,271 tests across unit, integration, performance, and smoke suites.
+1,364 tests across unit, integration, performance, and smoke suites.
 100% statement coverage across all modules.
 All tests pass with and without the Rust extension.
 
