@@ -7,9 +7,7 @@ Proprietary and confidential.
 
 ---
 
-LUMEN is a serialization format built for three goals: smallest possible
-output, fastest possible encode and decode, and native compatibility with
-language model context windows.
+LUMEN is a serialization format built for three goals: smallest possible output, fastest possible encode and decode, and native compatibility with language model context windows.
 
 It ships as a pure Python library with an optional Rust acceleration layer
 that is drop-in compatible and produces byte-identical output.
@@ -89,3 +87,11 @@ Measured on 1,000 records, 10 mixed-type columns, Python 3.12, rustc 1.92.
 | LUMEN binary Python | 13.579 | 0.09x |
 | LUMEN binary Rust | 1.013 | 1.2x faster |
 | LUMEN text Rust | 1.018 | 1.2x faster |
+
+---
+
+## Test Coverage
+
+1,271 tests across unit, integration, performance, and smoke suites.
+100% statement coverage across all modules.
+All tests pass with and without the Rust extension.

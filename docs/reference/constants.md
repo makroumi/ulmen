@@ -71,3 +71,53 @@ print(RECORD_TYPES)
 print(FIELD_COUNTS["msg"])   # 9
 print(FIELD_COUNTS["tool"])  # 7
 ```
+
+---
+
+## LUMEN-AGENT Constants
+
+### Priority Values
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `PRIORITY_MUST_KEEP` | `1` | Never removed by any compression strategy |
+| `PRIORITY_KEEP_IF_ROOM` | `2` | Kept unless budget is exhausted |
+| `PRIORITY_COMPRESSIBLE` | `3` | First candidate for compression |
+
+Records without a priority field default to `PRIORITY_COMPRESSIBLE`.
+
+### Compression Strategy Names
+
+| Constant | Value |
+|---|---|
+| `COMPRESS_COMPLETED_SEQUENCES` | `"completed_sequences"` |
+| `COMPRESS_KEEP_TYPES` | `"keep_types"` |
+| `COMPRESS_SLIDING_WINDOW` | `"sliding_window"` |
+
+### Meta Fields
+
+```python
+META_FIELDS = ("parent_id", "from_agent", "to_agent", "priority")
+```
+Valid names for the 'meta:' header line. 'priority' is decoded as integer.
+All others are decoded as string.
+
+### Record Type Field Counts
+`FIELD_COUNTS` maps each record type to its total field count per row,
+including the four common fields (type, id, thread_id, step) but
+excluding any declared meta fields.
+
+```python
+from lumen import FIELD_COUNTS
+
+FIELD_COUNTS["msg"]  # 9
+FIELD_COUNTS["tool"] # 7
+FIELD_COUNTS["res"]  # 8
+FIELD_COUNTS["plan"] # 7
+FIELD_COUNTS["obs"]  # 7
+FIELD_COUNTS["err"]  # 8
+FIELD_COUNTS["mem"]  # 8
+FIELD_COUNTS["rag"]  # 9
+FIELD_COUNTS["hyp"]  # 8
+FIELD_COUNTS["cot"]  # 8
+```

@@ -1,8 +1,7 @@
 # LUMEN-AGENT Overview
 
 LUMEN-AGENT v1 is a structured wire format for agentic AI systems.
-It replaces free-form JSON and prose with a strict, typed, pipe-delimited
-protocol that is both token-efficient and zero-hallucination by design.
+It replaces free-form JSON and prose with a strict, typed, pipe-delimited protocol that is both token-efficient and zero-hallucination by design.
 
 ---
 
@@ -15,8 +14,7 @@ JSON has three problems for agentic workloads:
 2. Untyped. The model must infer types from context or schema definitions.
 3. Hallucination-prone. Free-form structure gives models too much latitude.
 
-LUMEN-AGENT fixes all three: typed rows, fixed schemas per record type,
-and strict validation that rejects any malformed payload atomically.
+LUMEN-AGENT fixes all three: typed rows, fixed schemas per record type, and strict validation that rejects any malformed payload atomically.
 
 ---
 
@@ -36,6 +34,9 @@ on the 14-row reference example.
 
 **Streamable.** Each row is independently parseable. A consumer can process
 rows as they arrive without buffering the full payload.
+
+**Forward compatible.** Unknown header lines are silently ignored, so future protocol versions can add new header fields without breaking
+existing parsers.
 
 ---
 
@@ -87,7 +88,8 @@ records = [
 ]
 
 payload = encode_agent_payload(records)
-print(payload)
+decoded = decode_agent_payload(payload)
+ok, err = validate_agent_payload(payload)
 ```
 
 Output:
@@ -109,21 +111,363 @@ print(decoded[2]["status"]) # "done"
 
 ---
 
+## Extemded Header Fields
+Payloads can carry optional metadata in the header:
+
+```python
+from lumen import encode_agent_payload, decode_agent_payload_full
+
+payload = encode_agent_payload(
+    records,
+    thread_id="t1",
+    context_window=8000,
+    auto_context=True,
+    payload_id="uuid-abc",
+    parent_payload_id="uuid-prev",
+    agent_id="agent-alpha",
+    session_id="sess-001",
+    schema_version="1.0.0",
+)
+
+decoded_records, header = decode_agent_payload_full(payload)
+print(header.thread_id)
+print(header.context_window)
+print(header.context_used)
+print(header.payload_id)
+print(header.parent_payload_id)
+print(header.agent_id)
+print(header.session_id)
+print(header.schema_version)
+```
+
+Wire output:
+```text
+LUMEN-AGENT v1
+thread: t1
+context_window: 8000
+context_used: 42
+payload_id: uuid-abc
+parent_payload_id: uuid-prev
+agent_id: agent-alpha
+session_id: sess-001
+schema_version: 1.0.0
+records: 4
+...
+```
+
+---
+
+## Meta Fields
+Meta fields are declared in the header and appended to every data row.
+Valid names: 'parent_id', 'from_agent', 'to_agent', 'priority'.
+
+```python
+rec = {
+    "type": "msg", "id": "m1", "thread_id": "t1", "step": 1,
+    "role": "user", "turn": 1, "content": "hi", "tokens": 1,
+    "flagged": False,
+    "from_agent": "planner", "to_agent": "executor",
+    "priority": 1, "parent_id": None,
+}
+
+payload = encode_agent_payload(
+    [rec],
+    meta_fields=("parent_id", "from_agent", "to_agent", "priority"),
+)
+```
+
+---
+
+## Structured Validation Errors
+```python
+ok, err = validate_agent_payload(payload, structured=True)
+if not ok:
+    print(err.message)
+    print(err.row)
+    print(err.field)
+    print(err.expected)
+    print(err.got)
+    print(err.suggestion)
+```
+`ValidationError` is always falsy: `bool(err)` is `False`.
+
+---
+
+## Context Budget Enforcement
+
+```python
+from lumen import ContextBudgetExceededError
+
+try:
+    payload = encode_agent_payload(
+        records,
+        context_window=100,
+        auto_context=True,
+        enforce_budget=True,
+    )
+except ContextBudgetExceededError as e:
+    print(e.context_window)
+    print(e.context_used)
+    print(e.overage)
+```
+
+---
+
+## Context Compression
+When a conversation grows long, compress it before encoding:
+
+```python
+from lumen import compress_context
+from lumen.core._agent import (
+    COMPRESS_COMPLETED_SEQUENCES,
+    COMPRESS_KEEP_TYPES,
+    COMPRESS_SLIDING_WINDOW,
+    PRIORITY_MUST_KEEP,
+    PRIORITY_KEEP_IF_ROOM,
+    PRIORITY_COMPRESSIBLE,
+)
+
+# Replace completed tool+res pairs with mem summaries
+compressed = compress_context(
+    records,
+    strategy=COMPRESS_COMPLETED_SEQUENCES,
+    keep_priority=PRIORITY_KEEP_IF_ROOM,
+    preserve_cot=True,
+)
+
+# Keep only specified types
+compressed = compress_context(
+    records,
+    strategy=COMPRESS_KEEP_TYPES,
+    keep_types=["msg", "mem", "err"],
+)
+
+# Keep recent records, summarize older ones
+compressed = compress_context(
+    records,
+    strategy=COMPRESS_SLIDING_WINDOW,
+    window_size=20,
+)
+```
+
+Records with priority = 'PRIORITY_MUST_KEEP' are never removed by any strategy
+
+---
+
+## Memory Deduplication
+
+```python
+from lumen import dedup_mem, get_latest_mem
+
+# Keep only the most recent mem record per (thread_id, key)
+clean = dedup_mem(records)
+
+# Get the most recent mem record for a specific key
+latest = get_latest_mem(records, key="user_preference")
+if latest:
+    print(latest["value"])
+```
+
+---
+
+# Context Usage Estimation
+
+```python
+from lumen import chunk_payload, merge_chunks, build_summary_chain
+
+# Split into chunks, each fitting within token_budget
+chunks = chunk_payload(
+    records,
+    token_budget=4000,
+    thread_id="t1",
+    overlap=2,
+    parent_payload_id="prev-chain-id",
+    session_id="sess-001",
+)
+
+# Every chunk is independently valid
+for chunk in chunks:
+    ok, err = validate_agent_payload(chunk)
+    assert ok
+
+# Merge chunks back into a flat record list (deduplicates by id+thread+step)
+merged = merge_chunks(chunks)
+
+# Summary chain: older records compressed to mem, recent kept verbatim
+chain = build_summary_chain(
+    records,
+    token_budget=4000,
+    thread_id="t1",
+    session_id="sess-001",
+)
+# Feed chain[-1] to the LLM; it references prior summaries via parent_payload_id
+```
+
+---
+
+## LLM Output Repair
+When an LLM produces a malformed payload:
+
+```python
+from lumen import parse_llm_output
+
+# Non-strict: returns error payload if repair fails
+repaired = parse_llm_output(raw_llm_text)
+
+# Strict: raises ValueError if repair fails
+repaired = parse_llm_output(raw_llm_text, strict=True)
+
+# Override thread_id on all records
+repaired = parse_llm_output(raw_llm_text, thread_id="t1")
+```
+Repairs applied automatically in order:
+
+1. Strip markdown fences
+2. Locate the magic line, discard everything before it
+3. Fix wrong records: N count
+4. Remove blank lines
+5. Skip lines with unknown record types
+6. Re-encode surviving decodable rows if first-pass validation fails
+
+---
+
+## Exact Token Counting
+
+```python
+from lumen import count_tokens_exact, count_tokens_exact_records
+
+n = count_tokens_exact(payload)
+n = count_tokens_exact_records(records)
+```
+Uses cl100k_base BPE (GPT-4 / Claude compatible).
+Falls back to character estimate when tiktoken is unavailable.
+
+---
+
+## Streaming Decode
+
+```python
+from lumen import decode_agent_stream
+
+with open("payload.txt") as f:
+    for rec in decode_agent_stream(f):
+        process(rec)
+```
+Header is buffered until 'records: N' is found. Data rows are decoded
+and yielded one at a time. Blank lines are skipped. Unknown header lines
+are ignored.
+
+---
+
 ## Subgraph Extraction
 Filter a payload by thread, step range, or record type:
 
 ```python
-from lumen import extract_subgraph_payload
+from lumen import extract_subgraph, extract_subgraph_payload
 
-filtered = extract_subgraph_payload(
-    payload,
+# From decoded records
+filtered = extract_subgraph(
+    records,
     thread_id="t1",
     step_min=2,
-    step_max=3,
-    types=["tool", "res"],
+    step_max=5,
+    types=["tool", "res", "err"],
+)
+
+# From raw payload string, returns valid payload string
+filtered_payload = extract_subgraph_payload(
+    payload,
+    thread_id="t1",
+    types=["cot"],
 )
 ```
 
+---
+
+## Multi-Agent Routing
+
+```python
+from lumen import AgentRouter, validate_routing_consistency
+
+router = AgentRouter()
+router.register("planner", "executor", handle_task)
+router.register("executor", "planner", handle_result)
+
+router.dispatch(records)
+router.dispatch_one(record)
+
+ok, err = validate_routing_consistency(records)
+```
+
+---
+
+## Cross-Payloadd Thread Tracking
+
+```python
+from lumen import ThreadRegistry, merge_threads
+
+registry = ThreadRegistry()
+registry.add_payload("pid-1", records_from_payload_1)
+registry.add_payload("pid-2", records_from_payload_2)
+threads = registry.get_threads()
+
+# Merge thread records from multiple payloads
+merged = merge_threads([records_1, records_2, records_3])
+```
+
+---
+
+## Audit Trail
+
+```python
+from lumen import ReplayLog
+
+log = ReplayLog()
+log.append({"event": "encode", "payload_id": "pid-1", "ts": 1234567890})
+log.append({"event": "validate", "ok": True})
+
+for event in log.all():
+    print(event)
+```
+
+---
+
+## System Prompt Generation
+```python
+from lumen import generate_system_prompt
+
+prompt = generate_system_prompt(
+    include_examples=True,
+    include_validation=True,
+)
+```
+The prompt is generated from the live schema and always reflects the
+current record types, field names, enum values, and encoding rules.
+
+---
+
+## LUMIA Bridge
+
+```python
+from lumen import convert_agent_to_lumia, convert_lumia_to_agent
+
+# LUMEN-AGENT to LUMIA
+lumia = convert_agent_to_lumia(agent_payload)
+
+# LUMIA to LUMEN-AGENT
+payload = convert_lumia_to_agent(lumia, thread_id="t1")
+```
+
+---
+
+## MessagePack Compatibility
+
+```python
+from lumen.core._msgpack_compat import encode_msgpack, decode_msgpack
+
+packed   = encode_msgpack(records)
+unpacked = decode_msgpack(packed)
+```
 ---
 
 ## Next Steps
