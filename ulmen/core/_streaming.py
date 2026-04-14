@@ -35,7 +35,7 @@ try:
     from ulmen._ulmen_rust import UlmenStreamEncoder as _RustStreamEncoder  # type: ignore
     from ulmen._ulmen_rust import encode_binary_stream_chunked as _rust_chunked  # type: ignore
     _RUST_STREAM = True
-except ImportError:
+except ImportError:  # pragma: no cover
     _RustStreamEncoder = None
     _rust_chunked      = None
 
