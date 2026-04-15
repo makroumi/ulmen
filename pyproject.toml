@@ -66,6 +66,7 @@ show_missing = true
 skip_covered = false
 
 [tool.ruff]
+exclude = ["Notebooks/"]
 line-length    = 100
 target-version = "py38"
 
