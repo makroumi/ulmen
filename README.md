@@ -34,67 +34,7 @@ that is drop-in compatible and byte-identical in output.
 
 ## Benchmarks
 
-Measured on 1,000 records, 10 mixed-type columns (int, float, str, bool).
-Speed = median of 50 runs, full construction included (pool build + encode).
-Machine: x86_64 Linux, Python 3.12, rustc 1.92.
-
-### Size
-
-| Format | Bytes | vs JSON |
-|---|---:|---:|
-| JSON | 145,664 | 100.0% |
-| Pickle protocol 4 | 62,177 | 42.7% |
-| CSV | 61,717 | 42.4% |
-| ULMEN text | 57,403 | 39.4% |
-| ULMEN text | 46,779 | 32.1% |
-| ULMEN binary | 32,701 | 22.4% |
-| ULMEN zlib-6 | 2,453 | 1.7% |
-| ULMEN zlib-9 | 2,450 | 1.7% |
-
-Python and Rust produce byte-identical output.
-
-### Speed - Encode (median ms, 1,000 records)
-
-| Format | Encode ms | Decode ms |
-|---|---:|---:|
-| JSON | 2.137 | 2.771 |
-| Pickle protocol 4 | 0.644 | 0.807 |
-| ULMEN text (Python) | 19.707 | - |
-| ULMEN binary (Python) | 22.008 | 0.736 |
-| ULMEN zlib-6 (Python) | 22.251 | - |
-| ULMEN (Python) | 2.433 | 1.405 |
-| ULMEN text (Rust) | 1.726 | - |
-| ULMEN binary (Rust) | 1.721 | 0.738 |
-| ULMEN zlib-6 (Rust) | 2.109 | - |
-| ULMEN (Rust) | 5.697 | 1.397 |
-
-Rust acceleration: 12.8x faster binary encode, 11.4x faster text encode vs Python.
-
-ULMEN binary (Rust) encode is comparable to JSON encode while producing
-output 4.5x smaller.
-
-### Streaming (median 50 runs, 1,000 records)
-
-| Surface | Encode ms | Decode ms | MB/s |
-|---|---:|---:|---:|
-| `stream_encode` | 2.298 | 0.726 | 14.2 |
-| `stream_encode_windowed` (ws=100) | 1.660 | — | — |
-
-Wire format identical to batch encode. Rust backend selected automatically.
-
----
-
-## At a Glance
-
-| | ULMEN binary | ULMEN text | ULMEN | JSON |
-|---|---|---|---|---|
-| Size vs JSON | 22.4% | 32.1% | 39.4% | 100% |
-| Zlib compressed | 1.7% | - | - | - |
-| Rust encode (ms) | 1.721 | 1.726 | 5.697 | 2.137 |
-| Python encode (ms) | 22.008 | 19.707 | 2.433 | 2.137 |
-| Self-describing | yes | yes | yes | yes |
-| LLM-generatable | - | - | yes | partial |
-| Round-trip exact | yes | yes | yes | no (NaN/inf) |
+![Benchmarks](docs/v1-benchmarks.png)
 
 ---
 
