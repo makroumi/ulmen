@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name        = "ulmen"
-version     = "1.0.2"
+version     = "1.0.3"
 description = "ULMEN: The number one serialization format across size, tokens, speed, and memory"
 readme      = "README.md"
 license     = { text = "BSL-1.1" }
