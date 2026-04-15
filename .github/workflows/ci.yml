@@ -51,6 +51,9 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install Python dependencies
+        run: pip install maturin pytest pytest-cov
+
       - name: Build and install Rust extension
         run: |
           python -m venv .venv
@@ -69,3 +72,48 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=100 \
             -x
+
+  publish:
+    name: Publish to PyPI
+    needs: test
+    runs-on: ubuntu-latest
+    # Only publish on push to main, not on PRs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: pypi
+      url: https://pypi.org/p/ulmen
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
+          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13
+          sccache: 'false'
+          manylinux: auto
+        env:
+          RUSTC_WRAPPER: ""
+          SCCACHE_GHA_ENABLED: "false"
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+        env:
+          RUSTC_WRAPPER: ""
+          SCCACHE_GHA_ENABLED: "false"
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
