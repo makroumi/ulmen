@@ -1,0 +1,6 @@
+# Hide Notebooks from GitHub language statistics
+Notebooks/** linguist-vendored
+*.ipynb linguist-vendored
+
+# Normalize line endings
+* text=auto
