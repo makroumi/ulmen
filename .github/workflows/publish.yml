@@ -62,17 +62,10 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
       - name: Build sdist
-        uses: PyO3/maturin-action@v1
-        with:
-          command: sdist
-          args: --out dist
-        env:
-          RUSTC_WRAPPER: ''
-          RUSTUP_TOOLCHAIN: stable
+        run: |
+          pip install maturin
+          maturin sdist --out dist
 
       - uses: actions/upload-artifact@v4
         with:
