@@ -38,7 +38,9 @@
 
 
 **Ultra Lightweight Minimal Encoding Notation**
-Copyright (c) El Mehdi Makroumi. All rights reserved.
+Copyright (c) 2026 El Mehdi Makroumi. All rights reserved.
+ULMEN is licensed under the Business Source License 1.1.
+See the LICENSE file in the project root for full license information.
 
 Version: 1.0.0
 Format version: 3.3 (MAGIC + VERSION bytes)

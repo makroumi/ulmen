@@ -1,7 +1,13 @@
+# Copyright (c) 2026 El Mehdi Makroumi. All rights reserved.
+#
+# This file is part of ULMEN.
+# ULMEN is licensed under the Business Source License 1.1.
+# See the LICENSE file in the project root for full license information.
+
 """
 ULMEN V1 -- Ultra Lightweight Minimal Encoding Notation
-Copyright (c) El Mehdi Makroumi. All rights reserved.
-Proprietary and confidential.
+Copyright (c) 2026 El Mehdi Makroumi. All rights reserved.
+ULMEN is licensed under the Business Source License 1.1.
 
 Three surfaces over a single data model:
     Binary   -- smallest on wire, columnar, pool + strategies

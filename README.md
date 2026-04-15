@@ -1,11 +1,5 @@
 # ULMEN: Ultra Lightweight Minimal Encoding Notation
 ### The serialization engine built for LLM agentic workflows.
-
-Copyright (c) El Mehdi Makroumi. All rights reserved.
-Proprietary and confidential.
-
----
-
 The AI engineering community is currently obsessed with expanding LLM context windows to 1M+ tokens. Meanwhile, teams are burning massive amounts of compute and cloud egress costs because they are orchestrating multi-agent systems using JSON.
 
 We are feeding state-of-the-art intelligence through a 20-year-old, heavily bloated web format.
@@ -695,6 +689,29 @@ ULMEN-AGENT protocol details.
 
 ---
 
-## Versioning
-1.0.0
+## License & Fair Use (BSL 1.1)
+**ULMEN is licensed under the Business Source License (BSL) 1.1.**
+
+I built this engine to solve a massive, expensive bottleneck in AI orchestration, and I want the builders, the indie hackers, and the startups to have it with zero friction.
+
+The TL;DR:
+
+- **Free for the 99%:** ULMEN is completely free to use in production for any individual, open-source project, academic researcher, or commercial entity with less than $10,000,000 USD in gross annual revenue.
+
+- **The Corporate Clause:** If your legal entity (including affiliates) exceeds $10M USD in revenue, you must purchase a Commercial License.
+
+-**The Open Source Guarantee:** To ensure this technology ultimately belongs to the community, every specific version of ULMEN automatically converts to the fully open-source Apache 2.0 License exactly four (4) years after its release.
+
+**Why BSL?**
+The BSL protects the countless hours of systems architecture required to build and maintain ULMEN. It allows me to give a world-class engine away for free to the developers who need it most, while ensuring that trillion-dollar cloud providers and tech giants cannot strip-mine the project without contributing to its survival.
+
+See the [LICENSE] file for the full legal text.
+
+
+## Commercial Licensing
+If your entity (including affiliates) exceeds the $10,000,000 USD gross annual revenue threshold, or if you wish to embed ULMEN into a commercial product that competes with it, you must acquire a Commercial License.
+
+Commercial licenses grant you the right to bypass the BSL restrictions and use ULMEN in high-revenue production environments.
+
+Contact: Reach out to 'elmehdi.makroumi@gmail.com' to request a commercial license agreement.
 

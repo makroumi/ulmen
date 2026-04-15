@@ -7,7 +7,7 @@ name        = "ulmen"
 version     = "1.0.2"
 description = "ULMEN: The number one serialization format across size, tokens, speed, and memory"
 readme      = "README.md"
-license     = { text = "Apache-2.0" }
+license     = { text = "BSL-1.1" }
 requires-python = ">=3.8"
 keywords    = ["serialization", "binary", "encoding", "compression", "rust"]
 classifiers = [

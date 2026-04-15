@@ -1,9 +1,9 @@
 [package]
 name        = "ulmen"
-version     = "1.0.2"
+version     = "1.0.3"
 edition     = "2021"
 description = "ULMEN Rust acceleration layer (PyO3)"
-license     = "Apache-2.0"
+license     = "BSL-1.1"
 
 [lib]
 name       = "ulmen_rust"
