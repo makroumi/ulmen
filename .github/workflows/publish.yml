@@ -14,25 +14,20 @@ on:
 
 jobs:
   build-wheels:
-    name: Build ${{ matrix.os }} wheels
+    name: Build ${{ matrix.os }}-${{ matrix.target }} wheels
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux x86_64 — manylinux for broad compatibility
           - os: ubuntu-latest
             target: x86_64
-          # Linux aarch64
           - os: ubuntu-latest
             target: aarch64
-          # macOS x86_64
           - os: macos-13
             target: x86_64
-          # macOS Apple Silicon
           - os: macos-14
             target: aarch64
-          # Windows x86_64
           - os: windows-latest
             target: x86_64
 
@@ -47,11 +42,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: >-
-            --release
-            --out dist
-            --interpreter 3.10 3.11 3.12 3.13
-          sccache: 'true'
+          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13
           manylinux: auto
         env:
           PYO3_USE_ABI3_FORWARD_COMPATIBILITY: '1'
@@ -66,6 +57,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Build sdist
         uses: PyO3/maturin-action@v1
