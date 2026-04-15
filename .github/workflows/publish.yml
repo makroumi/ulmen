@@ -84,15 +84,12 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
       - name: Build sdist
         run: |
           pip install maturin
+          unset RUSTC_WRAPPER
+          unset SCCACHE_GHA_ENABLED
           maturin sdist --out dist
-        env:
-          RUSTC_WRAPPER: ''
 
       - uses: actions/upload-artifact@v4
         with:
