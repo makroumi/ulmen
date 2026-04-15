@@ -65,6 +65,7 @@ jobs:
       - name: Build sdist
         run: |
           pip install maturin
+          unset RUSTC_WRAPPER
           maturin sdist --out dist
 
       - uses: actions/upload-artifact@v4
