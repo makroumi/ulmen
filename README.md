@@ -1,17 +1,16 @@
-# ULMEN V1
-**Ultra Lightweight Minimal Encoding Notation**
+# ULMEN: Ultra Lightweight Minimal Encoding Notation
+### The serialization engine built for LLM agentic workflows.
 
 Copyright (c) El Mehdi Makroumi. All rights reserved.
 Proprietary and confidential.
 
 ---
 
-ULMEN is a serialization format engineered to be the smallest, fastest,
-and most token-efficient way to move structured data between services,
-into storage, and through language model context windows.
+The AI engineering community is currently obsessed with expanding LLM context windows to 1M+ tokens. Meanwhile, teams are burning massive amounts of compute and cloud egress costs because they are orchestrating multi-agent systems using JSON.
 
-It ships as a pure Python library with an optional Rust acceleration layer
-that is drop-in compatible and byte-identical in output.
+We are feeding state-of-the-art intelligence through a 20-year-old, heavily bloated web format.
+
+**ULMEN** is a drop-in Python/Rust serialization engine that treats the LLM context window and network IPC as strict hardware constraints. By natively incorporating exact token-counting, string pooling, and semantic validation at the C/Rust boundary, ULMEN delivers Protobuf-level density without requiring pre-compiled schemas.
 
 ---
 
@@ -36,6 +35,15 @@ that is drop-in compatible and byte-identical in output.
 
 ![Benchmarks](docs/v1-benchmarks.png)
 
+Benchmarks run on production-grade constraints (NVIDIA Tesla T4, 16GB VRAM):
+
+- 44% LLM Token Reduction: Eliminates syntax bloat, saving approximately $59,000 per 10 million agent loops (vs. GPT-4o input costs).
+
+- 3x Faster Reads: Deserializes heavily nested payloads natively faster than the C-optimized orjson and standard json.
+
+- 4.1x Smaller IPC Footprint: The pooled binary format drastically reduces microservice network egress and Redis cache saturation.
+
+- The Semantic Firewall: Unlike generic formats that silently pass broken traces, the ULMEN-AGENT protocol automatically rejects orphaned tools, backwards steps, and invalid enums before they trigger LLM hallucinations.
 ---
 
 ## Surfaces
