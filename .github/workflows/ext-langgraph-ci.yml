@@ -57,10 +57,14 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install ulmen from source with Rust acceleration
+      - name: Build and install ulmen from source
         run: |
           pip install --upgrade pip maturin
-          maturin develop --release
+          maturin build --release --out dist
+          pip install dist/*.whl
+        env:
+          RUSTC_WRAPPER: ""
+          SCCACHE_GHA_ENABLED: "false"
 
       - name: Install extension dependencies
         run: |
