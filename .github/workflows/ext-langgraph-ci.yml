@@ -57,22 +57,25 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Build and install ulmen from source
+      - name: Build and install ulmen
         run: |
+          python -m venv .venv
+          source .venv/bin/activate
           pip install --upgrade pip maturin
-          maturin build --release --out dist
-          pip install dist/*.whl
+          maturin develop --release
         env:
           RUSTC_WRAPPER: ""
           SCCACHE_GHA_ENABLED: "false"
 
-      - name: Install extension dependencies
+      - name: Install extension deps and test tools
         run: |
+          source .venv/bin/activate
           pip install langgraph>=1.0.0 langchain-core>=0.1.0
           pip install pytest pytest-asyncio pytest-cov
 
       - name: Pytest with coverage
         run: |
+          source .venv/bin/activate
           pytest ulmen/ext/langgraph/tests/ \
             --cov=ulmen/ext/langgraph \
             --cov-report=term-missing \
