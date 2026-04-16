@@ -6,11 +6,13 @@ on:
     paths:
       - "ulmen/ext/langgraph/**"
       - ".github/workflows/ext-langgraph-ci.yml"
+      - ".github/workflows/ext-langgraph-publish.yml"
   pull_request:
     branches: [main, master]
     paths:
       - "ulmen/ext/langgraph/**"
       - ".github/workflows/ext-langgraph-ci.yml"
+      - ".github/workflows/ext-langgraph-publish.yml"
 
 jobs:
   lint:
