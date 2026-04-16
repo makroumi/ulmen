@@ -73,26 +73,13 @@ jobs:
           pip install langgraph>=1.0.0 langchain-core>=0.1.0
           pip install pytest pytest-asyncio pytest-cov
 
-      - name: Debug module locations
-        run: |
-          source .venv/bin/activate
-          python -c "
-          import ulmen
-          print('ulmen.__file__:', ulmen.__file__)
-          print('ulmen.__path__:', ulmen.__path__)
-          import ulmen.ext.langgraph
-          print('ext.__file__:', ulmen.ext.langgraph.__file__)
-          import sys
-          print('sys.path:')
-          for p in sys.path:
-              print(' ', p)
-          "
-
       - name: Pytest with coverage
         run: |
           source .venv/bin/activate
-          pytest ulmen/ext/langgraph/tests/ \
-            --cov=ulmen/ext/langgraph \
+          cd ulmen/ext/langgraph
+          pytest tests/ \
+            --cov=. \
+            --cov-config=.coveragerc \
             --cov-report=term-missing \
             --cov-fail-under=100 \
             -x
