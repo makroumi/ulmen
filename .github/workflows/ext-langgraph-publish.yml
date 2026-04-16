@@ -61,7 +61,7 @@ jobs:
       - name: Pytest with coverage
         run: |
           pytest ulmen/ext/langgraph/tests/ \
-            --cov=ulmen.ext.langgraph \
+            --cov=ulmen/ext/langgraph \
             --cov-report=term-missing \
             --cov-fail-under=100 \
             -x
