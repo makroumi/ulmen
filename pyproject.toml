@@ -59,14 +59,14 @@ addopts   = "-v --tb=short"
 
 [tool.coverage.run]
 source = ["ulmen"]
-omit   = ["tests/*"]
+omit   = ["tests/*", "ulmen/ext/*"]
 
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
 
 [tool.ruff]
-exclude = ["Notebooks/"]
+exclude = ["Notebooks/", "ulmen/ext/"]
 line-length    = 100
 target-version = "py38"
 
