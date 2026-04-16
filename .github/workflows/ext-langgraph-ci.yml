@@ -59,8 +59,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install langgraph>=1.0.0 langchain-core>=0.1.0
+          pip install ulmen>=1.0.2 langgraph>=1.0.0 langchain-core>=0.1.0
           pip install pytest pytest-asyncio pytest-cov
+
+      - name: Add repo root to PYTHONPATH
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
 
       - name: Pytest with coverage
         run: |
