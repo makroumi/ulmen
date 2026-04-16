@@ -1,0 +1,64 @@
+[build-system]
+requires      = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name            = "ulmen-langgraph"
+version         = "0.1.0"
+description     = "ULMEN extension for LangGraph — compressed checkpoints, token-efficient context, binary streaming"
+readme          = "README.md"
+requires-python = ">=3.9"
+keywords        = [
+    "ulmen", "langgraph", "langchain", "serialization",
+    "compression", "llm", "agents", "checkpointing",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+]
+
+dependencies = [
+    "ulmen>=1.0.2",
+    "langgraph>=1.0.0",
+    "langchain-core>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+]
+
+[project.urls]
+Homepage   = "https://github.com/makroumi/ulmen"
+Repository = "https://github.com/makroumi/ulmen"
+Issues     = "https://github.com/makroumi/ulmen/issues"
+
+[tool.setuptools]
+package-dir = {"ulmen.ext.langgraph" = "."}
+packages = ["ulmen.ext.langgraph"]
+
+[tool.setuptools.package-data]
+"ulmen.ext.langgraph" = ["py.typed", "README.md"]
+
+[tool.pytest.ini_options]
+testpaths    = ["tests"]
+asyncio_mode = "auto"
+addopts      = "-v --tb=short"
+
+[tool.ruff]
+src = ["."]
+
+[tool.mypy]
+ignore_missing_imports = true
+check_untyped_defs     = true
+no_error_summary       = true

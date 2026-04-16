@@ -1,0 +1,112 @@
+name: ulmen-langgraph Publish
+
+on:
+  push:
+    tags:
+      - "ext-v*.*.*"
+  workflow_dispatch:
+    inputs:
+      test_pypi:
+        description: "Publish to Test PyPI instead of PyPI"
+        required: false
+        default: "false"
+        type: choice
+        options: ["true", "false"]
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: pip install ruff mypy
+
+      - name: Ruff
+        run: ruff check ulmen/ext/langgraph/
+
+      - name: Mypy
+        run: |
+          mypy ulmen/ext/langgraph/ \
+            --ignore-missing-imports \
+            --no-error-summary \
+            --check-untyped-defs
+
+  test:
+    name: Tests
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+        working-directory: ulmen/ext/langgraph
+
+      - name: Pytest with coverage
+        run: |
+          pytest tests/ \
+            --cov=ulmen/ext/langgraph \
+            --cov-report=term-missing \
+            --cov-fail-under=100 \
+            -x
+        working-directory: ulmen/ext/langgraph
+
+  build:
+    name: Build distribution
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build sdist and wheel
+        run: python -m build --outdir dist
+        working-directory: ulmen/ext/langgraph
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ulmen-langgraph-dist
+          path: ulmen/ext/langgraph/dist/
+
+  publish:
+    name: Publish to ${{ github.event.inputs.test_pypi == 'true' && 'Test PyPI' || 'PyPI' }}
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.test_pypi == 'true' && 'test-pypi' || 'pypi' }}
+      url: ${{ github.event.inputs.test_pypi == 'true' && 'https://test.pypi.org/p/ulmen-langgraph' || 'https://pypi.org/p/ulmen-langgraph' }}
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ulmen-langgraph-dist
+          path: dist/
+
+      - name: Publish to Test PyPI
+        if: github.event.inputs.test_pypi == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: Publish to PyPI
+        if: github.event.inputs.test_pypi != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1

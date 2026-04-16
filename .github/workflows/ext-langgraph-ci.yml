@@ -1,0 +1,67 @@
+name: ulmen-langgraph CI
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - "ulmen/ext/langgraph/**"
+      - ".github/workflows/ext-langgraph-ci.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "ulmen/ext/langgraph/**"
+      - ".github/workflows/ext-langgraph-ci.yml"
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: pip install ruff mypy
+
+      - name: Ruff
+        run: ruff check ulmen/ext/langgraph/
+
+      - name: Mypy
+        run: |
+          mypy ulmen/ext/langgraph/ \
+            --ignore-missing-imports \
+            --no-error-summary \
+            --check-untyped-defs
+
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+        working-directory: ulmen/ext/langgraph
+
+      - name: Pytest with coverage
+        run: |
+          pytest tests/ \
+            --cov=ulmen/ext/langgraph \
+            --cov-report=term-missing \
+            --cov-fail-under=100 \
+            -x
+        working-directory: ulmen/ext/langgraph
