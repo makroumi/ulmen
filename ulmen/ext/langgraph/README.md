@@ -301,11 +301,11 @@ class MyCheckpointer(BaseCheckpointSaver):
 UlmenCheckpointer(MyCheckpointer())
 ```
 
-##Benchmarks
+## Benchmarks
 
-![Ulmen LangGraph Benchmarks](docs/png-benchmarks/ulmen-langgraph-benchmarks.png)
+![Ulmen LangGraph Benchmarks](../../../docs/png-benchmarks/langgraph/ulmen-langgraph_benchmarks.png)
 
-For detailed benchmark results and methodology, see the [Benchmark Notebook](docs/notebooks/ulmen-langgraph-benchmarks.ipynb).
+For detailed benchmark results and methodology, see the [Benchmark Notebook](../../../Notebooks/Benchmarks/extensions/langgraph/ulmen_langgraph_benchmarks.ipynb).
 
 ### Performance Characteristics
 All results measured on a 16-turn ReAct agent loop (65 messages: 1 system, 16 human, 32 AI, 16 tool) using tiktoken cl100k_base, LangGraph 1.1.6, LangChain Core 1.2.28, with Rust backend enabled.
