@@ -5,6 +5,8 @@ As LangGraph loops scale, standard JSON serialization creates massive token bloa
 
 At scale, this translates to roughly $372,600 in saved input costs per 10 million agent loops (GPT‑4o pricing), while inherently protecting against orphaned tool calls and truncated state payloads.
 
+![Ulmen LangGraph Benchmarks](../../../docs/png-benchmarks/langgraph/ulmen-langgraph_benchmarks.png)
+
 ## Installation
 ```Bash
 pip install ulmen-langgraph
@@ -302,8 +304,6 @@ UlmenCheckpointer(MyCheckpointer())
 ```
 
 ## Benchmarks
-
-![Ulmen LangGraph Benchmarks](../../../docs/png-benchmarks/langgraph/ulmen-langgraph_benchmarks.png)
 
 For detailed benchmark results and methodology, see the [Benchmark Notebook](../../../Notebooks/Benchmarks/extensions/langgraph/ulmen_langgraph_benchmarks.ipynb).
 
