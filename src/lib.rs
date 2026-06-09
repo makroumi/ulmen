@@ -2995,6 +2995,1317 @@ fn decode_agent_field(token: &str, type_char: &str) -> PyResult<PyObject> {
 // Module registration
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// ULMEN-AGENT v1 -- Rust-native encode / decode / validate
+//
+// Wire format (text, pipe-delimited):
+//   ULMEN-AGENT v1
+//   [thread: <id>]
+//   [context_window: <n>]
+//   [context_used: <n>]
+//   [payload_id: <id>]
+//   [parent_payload_id: <id>]
+//   [agent_id: <id>]
+//   [session_id: <id>]
+//   [schema_version: <ver>]
+//   [meta: field,field,...]
+//   records: N
+//   type|id|thread_id|step|field...|[meta_fields...]
+//
+// Design: zero heap allocation for the schema table (static arrays).
+// Field encode/decode mirrors _agent.py exactly so Python and Rust
+// produce byte-identical output.
+// ---------------------------------------------------------------------------
+
+const AGENT_MAGIC: &str = "ULMEN-AGENT v1";
+
+// Record type index -- used as array index into SCHEMAS
+const RT_MSG: usize = 0;
+const RT_TOOL: usize = 1;
+const RT_RES: usize = 2;
+const RT_PLAN: usize = 3;
+const RT_OBS: usize = 4;
+const RT_ERR: usize = 5;
+const RT_MEM: usize = 6;
+const RT_RAG: usize = 7;
+const RT_HYP: usize = 8;
+const RT_COT: usize = 9;
+
+// Field type chars: s=string, d=integer, f=float, b=bool
+// (required, name, type_char)
+struct FieldDef {
+    name: &'static str,
+    type_char: u8, // b's', b'd', b'f', b'b'
+    required: bool,
+}
+
+struct Schema {
+    name: &'static str,
+    fields: &'static [FieldDef],
+}
+
+// Total field count = 4 common (type,id,thread_id,step) + type-specific
+macro_rules! fd {
+    ($n:expr, $t:expr, $r:expr) => {
+        FieldDef {
+            name: $n,
+            type_char: $t,
+            required: $r,
+        }
+    };
+}
+
+static SCHEMAS: [Schema; 10] = [
+    Schema {
+        name: "msg",
+        fields: &[
+            fd!("role", b's', true),
+            fd!("turn", b'd', true),
+            fd!("content", b's', true),
+            fd!("tokens", b'd', true),
+            fd!("flagged", b'b', true),
+        ],
+    },
+    Schema {
+        name: "tool",
+        fields: &[
+            fd!("name", b's', true),
+            fd!("args", b's', true),
+            fd!("status", b's', true),
+        ],
+    },
+    Schema {
+        name: "res",
+        fields: &[
+            fd!("name", b's', true),
+            fd!("data", b's', false),
+            fd!("status", b's', true),
+            fd!("latency_ms", b'd', true),
+        ],
+    },
+    Schema {
+        name: "plan",
+        fields: &[
+            fd!("index", b'd', true),
+            fd!("description", b's', true),
+            fd!("status", b's', true),
+        ],
+    },
+    Schema {
+        name: "obs",
+        fields: &[
+            fd!("source", b's', true),
+            fd!("content", b's', true),
+            fd!("confidence", b'f', true),
+        ],
+    },
+    Schema {
+        name: "err",
+        fields: &[
+            fd!("code", b's', true),
+            fd!("message", b's', true),
+            fd!("source", b's', true),
+            fd!("recoverable", b'b', true),
+        ],
+    },
+    Schema {
+        name: "mem",
+        fields: &[
+            fd!("key", b's', true),
+            fd!("value", b's', true),
+            fd!("confidence", b'f', true),
+            fd!("ttl", b'd', false),
+        ],
+    },
+    Schema {
+        name: "rag",
+        fields: &[
+            fd!("rank", b'd', true),
+            fd!("score", b'f', true),
+            fd!("source", b's', true),
+            fd!("chunk", b's', true),
+            fd!("used", b'b', true),
+        ],
+    },
+    Schema {
+        name: "hyp",
+        fields: &[
+            fd!("statement", b's', true),
+            fd!("evidence", b's', true),
+            fd!("score", b'f', true),
+            fd!("accepted", b'b', true),
+        ],
+    },
+    Schema {
+        name: "cot",
+        fields: &[
+            fd!("index", b'd', true),
+            fd!("cot_type", b's', true),
+            fd!("text", b's', true),
+            fd!("confidence", b'f', true),
+        ],
+    },
+];
+
+// Enum validation sets -- mirrors _agent.py _ENUMS exactly
+static ENUM_MSG_ROLE: [&str; 3] = ["assistant", "system", "user"];
+static ENUM_TOOL_STATUS: [&str; 4] = ["done", "error", "pending", "running"];
+static ENUM_RES_STATUS: [&str; 3] = ["done", "error", "timeout"];
+static ENUM_PLAN_STATUS: [&str; 4] = ["active", "done", "pending", "skipped"];
+static ENUM_COT_TYPE: [&str; 5] = ["compute", "conclude", "observe", "plan", "verify"];
+
+#[inline]
+fn enum_contains(set: &[&str], val: &str) -> bool {
+    set.binary_search(&val).is_ok()
+}
+
+// Resolve record type name to schema index. O(1) via match.
+#[inline]
+fn schema_index(rtype: &str) -> Option<usize> {
+    match rtype {
+        "msg" => Some(RT_MSG),
+        "tool" => Some(RT_TOOL),
+        "res" => Some(RT_RES),
+        "plan" => Some(RT_PLAN),
+        "obs" => Some(RT_OBS),
+        "err" => Some(RT_ERR),
+        "mem" => Some(RT_MEM),
+        "rag" => Some(RT_RAG),
+        "hyp" => Some(RT_HYP),
+        "cot" => Some(RT_COT),
+        _ => None,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Field encoding -- byte-identical to Python _encode_field
+// ---------------------------------------------------------------------------
+
+fn agent_encode_field(v: &Bound<'_, PyAny>) -> PyResult<String> {
+    if v.is_none() {
+        return Ok("N".into());
+    }
+    // bool must be checked before int (bool is subtype of int in Python)
+    if let Ok(b) = v.extract::<bool>() {
+        return Ok(if b { "T".into() } else { "F".into() });
+    }
+    if let Ok(i) = v.extract::<i64>() {
+        return Ok(i.to_string());
+    }
+    if let Ok(f) = v.extract::<f64>() {
+        if f.is_nan() {
+            return Ok("nan".into());
+        }
+        if f.is_infinite() {
+            return Ok(if f > 0.0 { "inf".into() } else { "-inf".into() });
+        }
+        // Use Python repr-compatible float formatting
+        return Ok(format!("{:?}", f));
+    }
+    if let Ok(s) = v.extract::<String>() {
+        return Ok(agent_encode_str(&s));
+    }
+    // Fallback: str(v) then escape if needed
+    let s = v.str()?.to_string();
+    Ok(agent_encode_str(&s))
+}
+
+#[inline]
+fn agent_encode_str(s: &str) -> String {
+    if s.is_empty() {
+        return "$0=".into();
+    }
+    if s.contains('|')
+        || s.contains('"')
+        || s.contains('\\')
+        || s.contains('\n')
+        || s.contains('\r')
+    {
+        let mut out = String::with_capacity(s.len() + 4);
+        out.push('"');
+        for c in s.chars() {
+            match c {
+                '\\' => out.push_str("\\\\"),
+                '"' => out.push_str("\"\""),
+                '\n' => out.push_str("\\n"),
+                '\r' => out.push_str("\\r"),
+                _ => out.push(c),
+            }
+        }
+        out.push('"');
+        out
+    } else {
+        s.to_string()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Field decoding -- byte-identical to Python _decode_field
+// ---------------------------------------------------------------------------
+
+fn agent_decode_field<'py>(
+    py: Python<'py>,
+    tok: &str,
+    type_char: u8,
+) -> PyResult<Bound<'py, PyAny>> {
+    match tok {
+        "N" => return Ok(py.None().into_bound(py)),
+        "T" => return Ok(true.into_py(py).into_bound(py)),
+        "F" => return Ok(false.into_py(py).into_bound(py)),
+        "$0=" => return Ok(PyString::new_bound(py, "").into_any()),
+        _ => {}
+    }
+    // Quoted string: starts and ends with '"', len >= 2
+    if tok.len() >= 2 && tok.starts_with('"') && tok.ends_with('"') {
+        let inner = &tok[1..tok.len() - 1];
+        let s = agent_unescape(inner);
+        return Ok(PyString::new_bound(py, &s).into_any());
+    }
+    match type_char {
+        b'd' => {
+            let i: i64 = tok.parse().map_err(|_| {
+                pyo3::exceptions::PyValueError::new_err(format!("Invalid int token: {:?}", tok))
+            })?;
+            Ok(i.into_py(py).into_bound(py))
+        }
+        b'f' => {
+            let f: f64 = match tok {
+                "nan" => f64::NAN,
+                "inf" => f64::INFINITY,
+                "-inf" => f64::NEG_INFINITY,
+                _ => tok.parse().map_err(|_| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Invalid float token: {:?}",
+                        tok
+                    ))
+                })?,
+            };
+            Ok(f.into_py(py).into_bound(py))
+        }
+        b'b' => match tok {
+            "T" => Ok(true.into_py(py).into_bound(py)),
+            "F" => Ok(false.into_py(py).into_bound(py)),
+            _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid bool token: {:?}",
+                tok
+            ))),
+        },
+        _ => Ok(PyString::new_bound(py, tok).into_any()),
+    }
+}
+
+#[inline]
+fn agent_unescape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('\\') => out.push('\\'),
+                Some('n') => out.push('\n'),
+                Some('r') => out.push('\r'),
+                Some(c2) => {
+                    out.push('\\');
+                    out.push(c2);
+                }
+                None => out.push('\\'),
+            }
+        } else if c == '"' && chars.peek() == Some(&'"') {
+            out.push('"');
+            chars.next();
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
+// Row splitter -- pipe-aware, RFC 4180 quoting, O(n) single pass
+// ---------------------------------------------------------------------------
+
+fn agent_split_row(line: &str) -> Vec<&str> {
+    // Fast path: no quotes
+    if !line.contains('"') {
+        return line.split('|').collect();
+    }
+    // Slow path: quoted fields may contain pipes
+    let bytes = line.as_bytes();
+    let n = bytes.len();
+    let mut fields: Vec<&str> = Vec::with_capacity(16);
+    let mut i = 0usize;
+
+    while i < n {
+        if bytes[i] == b'"' {
+            // Quoted field: scan to closing quote, handle "" escapes
+            let start = i;
+            i += 1;
+            while i < n {
+                if bytes[i] == b'"' {
+                    if i + 1 < n && bytes[i + 1] == b'"' {
+                        i += 2; // escaped quote
+                    } else {
+                        i += 1; // closing quote
+                        break;
+                    }
+                } else {
+                    i += 1;
+                }
+            }
+            // Include quotes in the token so decode_field can identify it
+            let end = i;
+            fields.push(&line[start..end]);
+            if i < n && bytes[i] == b'|' {
+                i += 1;
+                // Trailing pipe: push empty field
+                if i == n {
+                    fields.push("");
+                }
+            }
+        } else {
+            // Unquoted field: scan to next pipe
+            let start = i;
+            while i < n && bytes[i] != b'|' {
+                i += 1;
+            }
+            fields.push(&line[start..i]);
+            if i < n && bytes[i] == b'|' {
+                i += 1;
+                if i == n {
+                    fields.push("");
+                }
+            }
+        }
+    }
+    fields
+}
+
+// ---------------------------------------------------------------------------
+// encode_agent_record_rust
+// ---------------------------------------------------------------------------
+
+#[pyfunction]
+#[pyo3(signature = (rec, meta_fields=None))]
+fn encode_agent_record_rust(
+    py: Python<'_>,
+    rec: &Bound<'_, PyDict>,
+    meta_fields: Option<Vec<String>>,
+) -> PyResult<String> {
+    let mf = meta_fields.unwrap_or_default();
+
+    let rtype_obj = rec
+        .get_item("type")?
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Record missing 'type' field"))?;
+    let rtype: String = rtype_obj.extract()?;
+
+    let si = schema_index(&rtype).ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(format!("Unknown record type: {:?}", rtype))
+    })?;
+    let schema = &SCHEMAS[si];
+
+    // Estimate capacity: type(4) + 4 common fields + type fields + meta
+    let n_fields = 4 + schema.fields.len() + mf.len();
+    let mut parts: Vec<String> = Vec::with_capacity(n_fields);
+
+    parts.push(rtype.clone());
+
+    // Common fields: id, thread_id, step
+    for key in &["id", "thread_id", "step"] {
+        let val = rec
+            .get_item(*key)?
+            .unwrap_or_else(|| py.None().into_bound(py));
+        parts.push(agent_encode_field(&val)?);
+    }
+
+    // Type-specific fields
+    for fd in schema.fields {
+        let val = rec
+            .get_item(fd.name)?
+            .unwrap_or_else(|| py.None().into_bound(py));
+        parts.push(agent_encode_field(&val)?);
+    }
+
+    // Meta fields
+    for mf_name in &mf {
+        let val = rec
+            .get_item(mf_name.as_str())?
+            .unwrap_or_else(|| py.None().into_bound(py));
+        parts.push(agent_encode_field(&val)?);
+    }
+
+    Ok(parts.join("|"))
+}
+
+// ---------------------------------------------------------------------------
+// decode_agent_record_rust
+// ---------------------------------------------------------------------------
+
+#[pyfunction]
+#[pyo3(signature = (line, meta_fields=None))]
+fn decode_agent_record_rust<'py>(
+    py: Python<'py>,
+    line: &str,
+    meta_fields: Option<Vec<String>>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let mf = meta_fields.unwrap_or_default();
+
+    let fields = agent_split_row(line);
+    if fields.is_empty() || (fields.len() == 1 && fields[0].is_empty()) {
+        return Err(pyo3::exceptions::PyValueError::new_err("Empty row"));
+    }
+
+    let rtype = fields[0];
+    let si = schema_index(rtype).ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(format!("Unknown record type: {:?}", rtype))
+    })?;
+    let schema = &SCHEMAS[si];
+
+    let base_count = 4 + schema.fields.len();
+    let meta_count = mf.len();
+    let expected = base_count + meta_count;
+
+    if fields.len() != expected {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Row type {:?} expects {} fields, got {}: {:?}",
+            rtype,
+            expected,
+            fields.len(),
+            line
+        )));
+    }
+
+    let d = PyDict::new_bound(py);
+    d.set_item("type", rtype)?;
+
+    // Common fields: id(s), thread_id(s), step(d)
+    let common_types: [u8; 3] = [b's', b's', b'd'];
+    let common_names: [&str; 3] = ["id", "thread_id", "step"];
+    for (i, (name, tc)) in common_names.iter().zip(common_types.iter()).enumerate() {
+        let tok = fields[1 + i];
+        let val = agent_decode_field(py, tok, *tc).map_err(|e| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Common field error in row {:?}: {}",
+                line, e
+            ))
+        })?;
+        d.set_item(*name, val)?;
+    }
+
+    // Type-specific fields
+    for (i, fd) in schema.fields.iter().enumerate() {
+        let tok = fields[4 + i];
+        if fd.required && tok == "N" {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Required field {:?} is null in row {:?}",
+                fd.name, line
+            )));
+        }
+        let val = agent_decode_field(py, tok, fd.type_char).map_err(|e| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Field {:?} (type={}) error in row {:?}: {}",
+                fd.name, fd.type_char as char, line, e
+            ))
+        })?;
+        d.set_item(fd.name, val)?;
+    }
+
+    // Meta fields
+    for (i, mf_name) in mf.iter().enumerate() {
+        let tok = fields[base_count + i];
+        let tc = if mf_name == "priority" { b'd' } else { b's' };
+        let val = agent_decode_field(py, tok, tc)?;
+        d.set_item(mf_name.as_str(), val)?;
+    }
+
+    Ok(d)
+}
+
+// ---------------------------------------------------------------------------
+// Header builder -- produces header lines as a Vec<String>
+// ---------------------------------------------------------------------------
+
+struct AgentHeaderOpts<'a> {
+    thread_id: Option<&'a str>,
+    context_window: Option<i64>,
+    context_used: Option<i64>,
+    payload_id: Option<&'a str>,
+    parent_payload_id: Option<&'a str>,
+    agent_id: Option<&'a str>,
+    session_id: Option<&'a str>,
+    schema_version: Option<&'a str>,
+    meta_fields: &'a [String],
+    record_count: usize,
+}
+
+fn build_header_lines(opts: &AgentHeaderOpts<'_>) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::with_capacity(12);
+    if let Some(v) = opts.thread_id {
+        lines.push(format!("thread: {}", v));
+    }
+    if let Some(v) = opts.context_window {
+        lines.push(format!("context_window: {}", v));
+    }
+    if let Some(v) = opts.context_used {
+        lines.push(format!("context_used: {}", v));
+    }
+    if let Some(v) = opts.payload_id {
+        lines.push(format!("payload_id: {}", v));
+    }
+    if let Some(v) = opts.parent_payload_id {
+        lines.push(format!("parent_payload_id: {}", v));
+    }
+    if let Some(v) = opts.agent_id {
+        lines.push(format!("agent_id: {}", v));
+    }
+    if let Some(v) = opts.session_id {
+        lines.push(format!("session_id: {}", v));
+    }
+    if let Some(v) = opts.schema_version {
+        lines.push(format!("schema_version: {}", v));
+    }
+    if !opts.meta_fields.is_empty() {
+        lines.push(format!("meta: {}", opts.meta_fields.join(",")));
+    }
+    lines.push(format!("records: {}", opts.record_count));
+    lines
+}
+
+// Rough token estimate: chars / 4, minimum 1
+#[inline]
+fn rough_tokens(s: &str) -> i64 {
+    ((s.len() as i64) + 3) / 4
+}
+
+// ---------------------------------------------------------------------------
+// encode_agent_payload_rust
+// ---------------------------------------------------------------------------
+
+#[pyfunction]
+#[pyo3(signature = (
+    records,
+    thread_id=None,
+    context_window=None,
+    meta_fields=None,
+    auto_context=true,
+    enforce_budget=false,
+    payload_id=None,
+    parent_payload_id=None,
+    agent_id=None,
+    session_id=None,
+    schema_version=None,
+    auto_payload_id=false,
+))]
+fn encode_agent_payload_rust(
+    py: Python<'_>,
+    records: &Bound<'_, PyList>,
+    thread_id: Option<String>,
+    context_window: Option<i64>,
+    meta_fields: Option<Vec<String>>,
+    auto_context: bool,
+    enforce_budget: bool,
+    payload_id: Option<String>,
+    parent_payload_id: Option<String>,
+    agent_id: Option<String>,
+    session_id: Option<String>,
+    schema_version: Option<String>,
+    auto_payload_id: bool,
+) -> PyResult<String> {
+    let mf = meta_fields.unwrap_or_default();
+
+    // Encode data rows first so we know count and can compute context_used
+    let mut data_lines: Vec<String> = Vec::with_capacity(records.len());
+    for item in records.iter() {
+        let rec: Bound<'_, PyDict> = item.downcast_into()?;
+        data_lines.push(encode_agent_record_rust(py, &rec, Some(mf.clone()))?);
+    }
+
+    // Auto payload_id via uuid4
+    let effective_payload_id: Option<String> = if auto_payload_id {
+        // Generate UUID via Python's uuid module (no external Rust dep needed)
+        let uuid_mod = py.import_bound("uuid")?;
+        let uuid4 = uuid_mod.call_method0("uuid4")?;
+        Some(uuid4.str()?.to_string())
+    } else {
+        payload_id
+    };
+
+    // context_used estimation (rough: chars / 4)
+    let context_used: Option<i64> = if auto_context && context_window.is_some() {
+        let body: String = data_lines.join("\n");
+        Some(rough_tokens(&body).max(1))
+    } else {
+        None
+    };
+
+    // Budget enforcement
+    if enforce_budget {
+        if let (Some(cw), Some(cu)) = (context_window, context_used) {
+            if cu > cw {
+                // Raise ContextBudgetExceededError via Python
+                let agent_mod = py.import_bound("ulmen.core._agent")?;
+                let exc_cls = agent_mod.getattr("ContextBudgetExceededError")?;
+                return Err(PyErr::from_value_bound(exc_cls.call1((cw, cu))?.into()));
+            }
+        }
+    }
+
+    let opts = AgentHeaderOpts {
+        thread_id: thread_id.as_deref(),
+        context_window,
+        context_used,
+        payload_id: effective_payload_id.as_deref(),
+        parent_payload_id: parent_payload_id.as_deref(),
+        agent_id: agent_id.as_deref(),
+        session_id: session_id.as_deref(),
+        schema_version: schema_version.as_deref(),
+        meta_fields: &mf,
+        record_count: data_lines.len(),
+    };
+
+    let header_lines = build_header_lines(&opts);
+
+    // Total capacity: magic + header lines + data lines + newlines
+    let total_cap = AGENT_MAGIC.len()
+        + header_lines.iter().map(|l| l.len() + 1).sum::<usize>()
+        + data_lines.iter().map(|l| l.len() + 1).sum::<usize>()
+        + 1;
+
+    let mut out = String::with_capacity(total_cap);
+    out.push_str(AGENT_MAGIC);
+    out.push('\n');
+    for line in &header_lines {
+        out.push_str(line);
+        out.push('\n');
+    }
+    for line in &data_lines {
+        out.push_str(line);
+        out.push('\n');
+    }
+
+    Ok(out)
+}
+
+// ---------------------------------------------------------------------------
+// Header parser -- forward compatible, silently ignores unknown lines
+// Returns (meta_fields, record_count, header_field_count, header_dict)
+// ---------------------------------------------------------------------------
+
+struct ParsedHeader {
+    thread_id: Option<String>,
+    context_window: Option<i64>,
+    context_used: Option<i64>,
+    payload_id: Option<String>,
+    parent_payload_id: Option<String>,
+    agent_id: Option<String>,
+    session_id: Option<String>,
+    schema_version: Option<String>,
+    meta_fields: Vec<String>,
+    record_count: usize,
+    lines_consumed: usize,
+}
+
+fn parse_header(lines: &[&str]) -> Result<ParsedHeader, String> {
+    let mut h = ParsedHeader {
+        thread_id: None,
+        context_window: None,
+        context_used: None,
+        payload_id: None,
+        parent_payload_id: None,
+        agent_id: None,
+        session_id: None,
+        schema_version: None,
+        meta_fields: Vec::new(),
+        record_count: 0,
+        lines_consumed: 0,
+    };
+
+    let known_meta: [&str; 4] = ["parent_id", "from_agent", "to_agent", "priority"];
+
+    for (idx, &line) in lines.iter().enumerate() {
+        if line.starts_with("thread: ") {
+            h.thread_id = Some(line[8..].trim().to_string());
+        } else if line.starts_with("context_window: ") {
+            h.context_window = Some(
+                line[16..]
+                    .trim()
+                    .parse()
+                    .map_err(|_| format!("Bad context_window line: {:?}", line))?,
+            );
+        } else if line.starts_with("context_used: ") {
+            h.context_used = Some(
+                line[14..]
+                    .trim()
+                    .parse()
+                    .map_err(|_| format!("Bad context_used line: {:?}", line))?,
+            );
+        } else if line.starts_with("payload_id: ") {
+            h.payload_id = Some(line[12..].trim().to_string());
+        } else if line.starts_with("parent_payload_id: ") {
+            h.parent_payload_id = Some(line[19..].trim().to_string());
+        } else if line.starts_with("agent_id: ") {
+            h.agent_id = Some(line[10..].trim().to_string());
+        } else if line.starts_with("session_id: ") {
+            h.session_id = Some(line[12..].trim().to_string());
+        } else if line.starts_with("schema_version: ") {
+            h.schema_version = Some(line[16..].trim().to_string());
+        } else if line.starts_with("meta: ") {
+            let raw = &line[6..];
+            let fields: Vec<String> = raw
+                .split(',')
+                .map(|f| f.trim().to_string())
+                .filter(|f| !f.is_empty())
+                .collect();
+            // Validate meta fields
+            let unknown: Vec<&str> = fields
+                .iter()
+                .filter(|f| !known_meta.contains(&f.as_str()))
+                .map(|f| f.as_str())
+                .collect();
+            if !unknown.is_empty() {
+                return Err(format!("Unknown meta fields: {:?}", unknown));
+            }
+            h.meta_fields = fields;
+        } else if line.starts_with("records: ") {
+            h.record_count = line[9..]
+                .trim()
+                .parse()
+                .map_err(|_| format!("Bad record count: {:?}", line))?;
+            h.lines_consumed = idx + 1;
+            return Ok(h);
+        }
+        // Unknown header line: silently ignore (forward compatibility)
+    }
+
+    Err("records: not found".to_string())
+}
+
+// ---------------------------------------------------------------------------
+// decode_agent_payload_rust
+// ---------------------------------------------------------------------------
+
+#[pyfunction]
+fn decode_agent_payload_rust<'py>(py: Python<'py>, text: &'py str) -> PyResult<Bound<'py, PyList>> {
+    let (records, _header) = decode_agent_payload_full_inner(py, text)?;
+    Ok(records)
+}
+
+// Internal: returns (records, header_dict) -- shared by decode and validate
+fn decode_agent_payload_full_inner<'py>(
+    py: Python<'py>,
+    text: &str,
+) -> PyResult<(Bound<'py, PyList>, ParsedHeader)> {
+    // Strip trailing newlines, split
+    let trimmed = text.trim_end_matches('\n');
+    let all_lines: Vec<&str> = trimmed.split('\n').collect();
+
+    if all_lines.len() < 2 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Payload too short: missing header lines",
+        ));
+    }
+    if all_lines[0] != AGENT_MAGIC {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Bad magic: expected {:?}, got {:?}",
+            AGENT_MAGIC, all_lines[0]
+        )));
+    }
+
+    let header =
+        parse_header(&all_lines[1..]).map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
+
+    let data_start = 1 + header.lines_consumed;
+    let data_lines = &all_lines[data_start..];
+    let declared_n = header.record_count;
+    let actual_n = data_lines.len();
+
+    if declared_n == 0 && actual_n == 0 {
+        return Ok((PyList::empty_bound(py), header));
+    }
+
+    if actual_n != declared_n {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Record count mismatch: declared {}, found {}",
+            declared_n, actual_n
+        )));
+    }
+
+    let result = PyList::empty_bound(py);
+    for (i, &line) in data_lines.iter().enumerate() {
+        if line.is_empty() {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Blank line at data row {}",
+                i + 1
+            )));
+        }
+        let rec =
+            decode_agent_record_rust(py, line, Some(header.meta_fields.clone())).map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!("Row {}: {}", i + 1, e))
+            })?;
+        result.append(rec)?;
+    }
+
+    Ok((result, header))
+}
+
+// ---------------------------------------------------------------------------
+// validate_agent_payload_rust
+//
+// Returns (bool, str|None) matching Python validate_agent_payload exactly.
+// When structured=True we still return a string (not a ValidationError object)
+// because ValidationError is a Python class. Python side wraps if needed.
+// ---------------------------------------------------------------------------
+
+#[pyfunction]
+#[pyo3(signature = (text, structured=false))]
+fn validate_agent_payload_rust(
+    py: Python<'_>,
+    text: &str,
+    structured: bool,
+) -> PyResult<(bool, PyObject)> {
+    // Try to decode first
+    let (records, header) = match decode_agent_payload_full_inner(py, text) {
+        Ok(r) => r,
+        Err(e) => {
+            let msg = e.to_string();
+            if structured {
+                // Return a ValidationError Python object
+                let agent_mod = py.import_bound("ulmen.core._agent")?;
+                let ve = agent_mod.getattr("ValidationError")?.call1((
+                    &msg,
+                    py.None(),
+                    py.None(),
+                    py.None(),
+                    py.None(),
+                    "Check payload structure and header lines",
+                ))?;
+                return Ok((false, ve.into()));
+            }
+            return Ok((false, PyString::new_bound(py, &msg).into_any().unbind()));
+        }
+    };
+
+    // Semantic validation
+    // thread_steps: track last step per thread_id for monotonicity check
+    let mut thread_steps: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    let mut tool_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut res_ids: Vec<(String, String)> = Vec::new(); // (id, loc)
+
+    let _ = header; // used for meta_fields already
+
+    for i in 0..records.len() {
+        let rec: Bound<'_, PyDict> = records.get_item(i)?.downcast_into()?;
+
+        let rtype: String = rec
+            .get_item("type")?
+            .unwrap_or_else(|| py.None().into_bound(py))
+            .extract()
+            .unwrap_or_default();
+        let rid: String = rec
+            .get_item("id")?
+            .unwrap_or_else(|| py.None().into_bound(py))
+            .extract()
+            .unwrap_or_default();
+        let tid: String = rec
+            .get_item("thread_id")?
+            .unwrap_or_else(|| py.None().into_bound(py))
+            .extract()
+            .unwrap_or_default();
+        let step_obj = rec
+            .get_item("step")?
+            .unwrap_or_else(|| py.None().into_bound(py));
+        let step: i64 = step_obj.extract().unwrap_or(0);
+
+        let row = i + 1;
+
+        // thread_id must be non-empty
+        if tid.is_empty() {
+            let msg = format!("Row {}: thread_id is empty | row={} | field='thread_id' | expected='non-empty string' | got='empty string'", row, row);
+            return val_err(
+                py,
+                &msg,
+                structured,
+                row,
+                "thread_id",
+                "non-empty string",
+                "empty string",
+                "Set thread_id to a unique thread identifier",
+            );
+        }
+        // id must be non-empty
+        if rid.is_empty() {
+            let msg = format!("Row {}: id is empty | row={} | field='id'", row, row);
+            return val_err(
+                py,
+                &msg,
+                structured,
+                row,
+                "id",
+                "non-empty string",
+                "empty string",
+                "Set id to a unique record identifier",
+            );
+        }
+        // step must be >= 1
+        if step < 1 {
+            let msg = format!("Row {}: step must be positive integer, got {:?}", row, step);
+            return val_err(
+                py,
+                &msg,
+                structured,
+                row,
+                "step",
+                "positive integer >= 1",
+                &format!("{:?}", step),
+                "step starts at 1 and increments monotonically",
+            );
+        }
+        // step must be non-decreasing within thread
+        let prev = *thread_steps.get(&tid).unwrap_or(&0);
+        if step < prev {
+            let msg = format!(
+                "Row {}: step {} is less than previous step {} in thread {:?}",
+                row, step, prev, tid
+            );
+            return val_err(
+                py,
+                &msg,
+                structured,
+                row,
+                "step",
+                &format!(">= {}", prev),
+                &step.to_string(),
+                "steps must be non-decreasing within a thread",
+            );
+        }
+        thread_steps.insert(tid.clone(), step);
+
+        // Track tool/res for cross-reference
+        if rtype == "tool" {
+            tool_ids.insert(rid.clone());
+        }
+        if rtype == "res" {
+            res_ids.push((rid.clone(), format!("row {}", row)));
+        }
+
+        // Enum validation
+        if let Some(err_msg) = validate_enums(py, &rec, &rtype, row, structured)? {
+            return Ok(err_msg);
+        }
+    }
+
+    // res rows must have matching tool rows
+    for (res_id, loc) in &res_ids {
+        if !tool_ids.contains(res_id) {
+            let msg = format!("{}: res id {:?} has no matching tool row", loc, res_id);
+            return val_err(
+                py,
+                &msg,
+                structured,
+                0,
+                "id",
+                &format!("tool row with id={:?}", res_id),
+                "no matching tool row",
+                &format!("Add a tool row with id={:?} before the res row", res_id),
+            );
+        }
+    }
+
+    // Success
+    let success_second: PyObject = if structured {
+        py.None()
+    } else {
+        PyString::new_bound(py, "").into_any().unbind()
+    };
+    Ok((true, success_second))
+}
+
+// Build a validation failure return value
+fn val_err(
+    py: Python<'_>,
+    msg: &str,
+    structured: bool,
+    row: usize,
+    field: &str,
+    expected: &str,
+    got: &str,
+    hint: &str,
+) -> PyResult<(bool, PyObject)> {
+    if structured {
+        let agent_mod = py.import_bound("ulmen.core._agent")?;
+        let row_obj: PyObject = if row > 0 {
+            row.into_py(py).into_bound(py).unbind()
+        } else {
+            py.None()
+        };
+        let ve = agent_mod
+            .getattr("ValidationError")?
+            .call1((msg, row_obj, field, expected, got, hint))?;
+        Ok((false, ve.into()))
+    } else {
+        Ok((false, PyString::new_bound(py, &msg).into_any().unbind()))
+    }
+}
+
+// Returns None if valid, Some((false, obj)) if invalid
+fn validate_enums<'py>(
+    py: Python<'py>,
+    rec: &Bound<'py, PyDict>,
+    rtype: &str,
+    row: usize,
+    structured: bool,
+) -> PyResult<Option<(bool, PyObject)>> {
+    // Helper: extract string or bool field as the token representation
+    let get_tok = |fname: &str| -> String {
+        match rec.get_item(fname) {
+            Ok(Some(v)) => {
+                if let Ok(b) = v.extract::<bool>() {
+                    return if b { "T".to_string() } else { "F".to_string() };
+                }
+                v.extract::<String>().unwrap_or_default()
+            }
+            _ => String::new(),
+        }
+    };
+
+    let check = |fname: &str, valid: &[&str], val: &str| -> Option<String> {
+        if val.is_empty() || val == "N" {
+            return None;
+        } // null = absent, ok
+        if !valid.contains(&val) {
+            Some(format!(
+                "Row {}: field {:?} value {:?} not in {:?}",
+                row, fname, val, valid
+            ))
+        } else {
+            None
+        }
+    };
+
+    let err_msg = match rtype {
+        "msg" => check("role", &ENUM_MSG_ROLE, &get_tok("role")),
+        "tool" => check("status", &ENUM_TOOL_STATUS, &get_tok("status")),
+        "res" => check("status", &ENUM_RES_STATUS, &get_tok("status")),
+        "plan" => check("status", &ENUM_PLAN_STATUS, &get_tok("status")),
+        "cot" => check("cot_type", &ENUM_COT_TYPE, &get_tok("cot_type")),
+        _ => None,
+    };
+
+    if let Some(msg) = err_msg {
+        let (fname, expected, got) = match rtype {
+            "msg" => ("role", ENUM_MSG_ROLE.join("/"), get_tok("role")),
+            "tool" => ("status", ENUM_TOOL_STATUS.join("/"), get_tok("status")),
+            "res" => ("status", ENUM_RES_STATUS.join("/"), get_tok("status")),
+            "plan" => ("status", ENUM_PLAN_STATUS.join("/"), get_tok("status")),
+            "cot" => ("cot_type", ENUM_COT_TYPE.join("/"), get_tok("cot_type")),
+            _ => ("", String::new(), String::new()),
+        };
+        let result = val_err(
+            py,
+            &msg,
+            structured,
+            row,
+            fname,
+            &expected,
+            &got,
+            &format!("Use one of: {}", expected),
+        )?;
+        return Ok(Some(result));
+    }
+
+    Ok(None)
+}
+
+// ---------------------------------------------------------------------------
+// Rust unit tests for the agent engine
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod agent_tests {
+    use super::*;
+
+    #[test]
+    fn schema_index_all_types() {
+        assert_eq!(schema_index("msg"), Some(RT_MSG));
+        assert_eq!(schema_index("tool"), Some(RT_TOOL));
+        assert_eq!(schema_index("res"), Some(RT_RES));
+        assert_eq!(schema_index("plan"), Some(RT_PLAN));
+        assert_eq!(schema_index("obs"), Some(RT_OBS));
+        assert_eq!(schema_index("err"), Some(RT_ERR));
+        assert_eq!(schema_index("mem"), Some(RT_MEM));
+        assert_eq!(schema_index("rag"), Some(RT_RAG));
+        assert_eq!(schema_index("hyp"), Some(RT_HYP));
+        assert_eq!(schema_index("cot"), Some(RT_COT));
+        assert_eq!(schema_index("bad"), None);
+    }
+
+    #[test]
+    fn field_counts_match_python() {
+        // Python FIELD_COUNTS = {t: 4 + len(s) for t, s in _SCHEMAS.items()}
+        assert_eq!(4 + SCHEMAS[RT_MSG].fields.len(), 9);
+        assert_eq!(4 + SCHEMAS[RT_TOOL].fields.len(), 7);
+        assert_eq!(4 + SCHEMAS[RT_RES].fields.len(), 8);
+        assert_eq!(4 + SCHEMAS[RT_PLAN].fields.len(), 7);
+        assert_eq!(4 + SCHEMAS[RT_OBS].fields.len(), 7);
+        assert_eq!(4 + SCHEMAS[RT_ERR].fields.len(), 8);
+        assert_eq!(4 + SCHEMAS[RT_MEM].fields.len(), 8);
+        assert_eq!(4 + SCHEMAS[RT_RAG].fields.len(), 9);
+        assert_eq!(4 + SCHEMAS[RT_HYP].fields.len(), 8);
+        assert_eq!(4 + SCHEMAS[RT_COT].fields.len(), 8);
+    }
+
+    #[test]
+    fn split_row_simple() {
+        let r = agent_split_row("a|b|c");
+        assert_eq!(r, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn split_row_no_pipe() {
+        let r = agent_split_row("abc");
+        assert_eq!(r, vec!["abc"]);
+    }
+
+    #[test]
+    fn split_row_quoted_pipe() {
+        let r = agent_split_row(r#"a|"b|c"|d"#);
+        assert_eq!(r.len(), 3);
+        assert_eq!(r[0], "a");
+        assert_eq!(r[1], "\"b|c\"");
+        assert_eq!(r[2], "d");
+    }
+
+    #[test]
+    fn split_row_trailing_pipe() {
+        let r = agent_split_row("a|b|");
+        assert_eq!(r, vec!["a", "b", ""]);
+    }
+
+    #[test]
+    fn split_row_empty() {
+        let r = agent_split_row("");
+        assert_eq!(r, vec![""]);
+    }
+
+    #[test]
+    fn encode_str_empty() {
+        assert_eq!(agent_encode_str(""), "$0=");
+    }
+
+    #[test]
+    fn encode_str_safe() {
+        assert_eq!(agent_encode_str("hello"), "hello");
+    }
+
+    #[test]
+    fn encode_str_with_pipe() {
+        assert_eq!(agent_encode_str("a|b"), "\"a|b\"");
+    }
+
+    #[test]
+    fn encode_str_with_quote() {
+        assert_eq!(agent_encode_str("say \"hi\""), "\"say \"\"hi\"\"\"");
+    }
+
+    #[test]
+    fn encode_str_with_newline() {
+        assert_eq!(agent_encode_str("a\nb"), "\"a\\nb\"");
+    }
+
+    #[test]
+    fn unescape_double_quote() {
+        assert_eq!(agent_unescape("say \"\"hi\"\""), "say \"hi\"");
+    }
+
+    #[test]
+    fn unescape_backslash_n() {
+        assert_eq!(agent_unescape("a\\nb"), "a\nb");
+    }
+
+    #[test]
+    fn parse_header_basic() {
+        let lines = ["records: 3"];
+        let h = parse_header(&lines).unwrap();
+        assert_eq!(h.record_count, 3);
+        assert_eq!(h.lines_consumed, 1);
+    }
+
+    #[test]
+    fn parse_header_all_fields() {
+        let lines = [
+            "thread: t1",
+            "context_window: 8000",
+            "context_used: 42",
+            "payload_id: p1",
+            "parent_payload_id: p0",
+            "agent_id: ag1",
+            "session_id: s1",
+            "schema_version: 1.0.0",
+            "meta: from_agent,to_agent",
+            "records: 5",
+        ];
+        let h = parse_header(&lines).unwrap();
+        assert_eq!(h.thread_id.as_deref(), Some("t1"));
+        assert_eq!(h.context_window, Some(8000));
+        assert_eq!(h.context_used, Some(42));
+        assert_eq!(h.payload_id.as_deref(), Some("p1"));
+        assert_eq!(h.parent_payload_id.as_deref(), Some("p0"));
+        assert_eq!(h.agent_id.as_deref(), Some("ag1"));
+        assert_eq!(h.session_id.as_deref(), Some("s1"));
+        assert_eq!(h.schema_version.as_deref(), Some("1.0.0"));
+        assert_eq!(h.meta_fields, vec!["from_agent", "to_agent"]);
+        assert_eq!(h.record_count, 5);
+        assert_eq!(h.lines_consumed, 10);
+    }
+
+    #[test]
+    fn parse_header_forward_compat() {
+        let lines = ["future_field: xyz", "records: 2"];
+        let h = parse_header(&lines).unwrap();
+        assert_eq!(h.record_count, 2);
+    }
+
+    #[test]
+    fn parse_header_bad_records_line() {
+        let lines = ["records: abc"];
+        assert!(parse_header(&lines).is_err());
+    }
+
+    #[test]
+    fn parse_header_bad_context_window() {
+        let lines = ["context_window: abc", "records: 0"];
+        assert!(parse_header(&lines).is_err());
+    }
+
+    #[test]
+    fn parse_header_unknown_meta_field() {
+        let lines = ["meta: not_real", "records: 0"];
+        assert!(parse_header(&lines).is_err());
+    }
+
+    #[test]
+    fn enum_sets_sorted() {
+        // Binary search requires sorted order
+        assert!(ENUM_MSG_ROLE.windows(2).all(|w| w[0] <= w[1]));
+        assert!(ENUM_TOOL_STATUS.windows(2).all(|w| w[0] <= w[1]));
+        assert!(ENUM_RES_STATUS.windows(2).all(|w| w[0] <= w[1]));
+        assert!(ENUM_PLAN_STATUS.windows(2).all(|w| w[0] <= w[1]));
+        assert!(ENUM_COT_TYPE.windows(2).all(|w| w[0] <= w[1]));
+    }
+
+    #[test]
+    fn enum_contains_valid() {
+        assert!(enum_contains(&ENUM_MSG_ROLE, "user"));
+        assert!(enum_contains(&ENUM_MSG_ROLE, "assistant"));
+        assert!(enum_contains(&ENUM_MSG_ROLE, "system"));
+        assert!(!enum_contains(&ENUM_MSG_ROLE, "robot"));
+    }
+
+    #[test]
+    fn magic_constant() {
+        assert_eq!(AGENT_MAGIC, "ULMEN-AGENT v1");
+    }
+}
+
 #[pymodule]
 fn _ulmen_rust(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<UlmenDictRust>()?;
@@ -3013,5 +4324,10 @@ fn _ulmen_rust(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(compare_sizes, m)?)?;
     m.add_function(wrap_pyfunction!(encode_agent_field, m)?)?;
     m.add_function(wrap_pyfunction!(decode_agent_field, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_agent_record_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_agent_record_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_agent_payload_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_agent_payload_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_agent_payload_rust, m)?)?;
     Ok(())
 }

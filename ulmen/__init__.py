@@ -271,6 +271,13 @@ try:
     from ulmen._ulmen_rust import decode_binary_records_rust as _dbr_rust  # type: ignore
     from ulmen._ulmen_rust import decode_ulmen_llm_rust as _dll_rust  # type: ignore
     from ulmen._ulmen_rust import encode_ulmen_llm_rust as _ell_rust  # type: ignore
+    from ulmen._ulmen_rust import (  # type: ignore
+        encode_agent_record_rust   as _ear_rust,
+        decode_agent_record_rust   as _dar_rust,
+        encode_agent_payload_rust  as _eap_rust,
+        decode_agent_payload_rust  as _dap_rust,
+        validate_agent_payload_rust as _vap_rust,
+    )
 
     def decode_binary_records(data: bytes) -> list:  # type: ignore[no-redef]
         """Decode ULMEN binary using Rust-accelerated decoder."""
@@ -283,6 +290,55 @@ try:
     def decode_ulmen_llm(text: str) -> list:  # type: ignore[no-redef]
         """Decode ULMEN format using Rust acceleration."""
         return _dll_rust(text)
+
+    def encode_agent_record(rec: dict, meta_fields: tuple = ()) -> str:  # type: ignore[no-redef]
+        """Encode a single agent record to a pipe-delimited row (Rust)."""
+        return _ear_rust(rec, list(meta_fields))
+
+    def decode_agent_record(line: str, meta_fields: tuple = ()) -> dict:  # type: ignore[no-redef]
+        """Decode a pipe-delimited row to an agent record dict (Rust)."""
+        return _dar_rust(line, list(meta_fields))
+
+    def encode_agent_payload(  # type: ignore[no-redef]
+        records,
+        thread_id=None,
+        context_window=None,
+        meta_fields=(),
+        auto_context=True,
+        enforce_budget=False,
+        payload_id=None,
+        parent_payload_id=None,
+        agent_id=None,
+        session_id=None,
+        schema_version=None,
+        auto_payload_id=False,
+    ) -> str:
+        """Encode agent records to a ULMEN-AGENT v1 payload (Rust)."""
+        return _eap_rust(
+            records,
+            thread_id=thread_id,
+            context_window=context_window,
+            meta_fields=list(meta_fields) if meta_fields else [],
+            auto_context=auto_context,
+            enforce_budget=enforce_budget,
+            payload_id=payload_id,
+            parent_payload_id=parent_payload_id,
+            agent_id=agent_id,
+            session_id=session_id,
+            schema_version=schema_version,
+            auto_payload_id=auto_payload_id,
+        )
+
+    def decode_agent_payload(text: str) -> list:  # type: ignore[no-redef]
+        """Decode a ULMEN-AGENT v1 payload to a list of record dicts (Rust)."""
+        return list(_dap_rust(text))
+
+    def validate_agent_payload(  # type: ignore[no-redef]
+        text: str,
+        structured: bool = False,
+    ) -> tuple:
+        """Validate a ULMEN-AGENT v1 payload (Rust)."""
+        return _vap_rust(text, structured)
 
     RUST_AVAILABLE = True
 
@@ -356,29 +412,57 @@ except ImportError:  # pragma: no cover
                 f"records={len(self._data)}, pool={len(self._pool)})"
             )
 
+
+
+
 # ---------------------------------------------------------------------------
-# ULMEN-AGENT Rust acceleration shims (GAP #5)
-# Python implementations exposed under Rust-named symbols for API compat.
+# Backward-compatible Rust-named API aliases
+#
+# These names are kept for compatibility with existing integrations and tests.
+# They delegate to the active package-level implementation, which is Rust when
+# available and Python otherwise.
 # ---------------------------------------------------------------------------
+
+def encode_agent_record_rust(rec, meta_fields=()):
+    return encode_agent_record(rec, meta_fields=meta_fields)
+
+def decode_agent_record_rust(line: str, meta_fields=()):
+    return decode_agent_record(line, meta_fields=meta_fields)
 
 def encode_agent_payload_rust(
     records,
     thread_id=None,
     context_window=None,
     meta_fields=(),
-    **kwargs,
-) -> str:
-    """ULMEN-AGENT encode with Rust-compatible API (Python implementation)."""
-    from ulmen.core._agent import encode_agent_payload as _enc
-    return _enc(records, thread_id=thread_id,
-                context_window=context_window, meta_fields=meta_fields, **kwargs)
-
+    auto_context=True,
+    enforce_budget=False,
+    payload_id=None,
+    parent_payload_id=None,
+    agent_id=None,
+    session_id=None,
+    schema_version=None,
+    auto_payload_id=False,
+):
+    return encode_agent_payload(
+        records,
+        thread_id=thread_id,
+        context_window=context_window,
+        meta_fields=meta_fields,
+        auto_context=auto_context,
+        enforce_budget=enforce_budget,
+        payload_id=payload_id,
+        parent_payload_id=parent_payload_id,
+        agent_id=agent_id,
+        session_id=session_id,
+        schema_version=schema_version,
+        auto_payload_id=auto_payload_id,
+    )
 
 def decode_agent_payload_rust(text: str):
-    """ULMEN-AGENT decode with Rust-compatible API (Python implementation)."""
-    from ulmen.core._agent import decode_agent_payload as _dec
-    return _dec(text)
+    return decode_agent_payload(text)
 
+def validate_agent_payload_rust(text: str, structured: bool = False):
+    return validate_agent_payload(text, structured=structured)
 
 # ---------------------------------------------------------------------------
 # Streaming encode surface
