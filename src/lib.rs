@@ -4119,6 +4119,879 @@ fn validate_enums<'py>(
 // Rust unit tests for the agent engine
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// M1c: decode_agent_stream_rust -- streaming line-by-line decoder
+// ---------------------------------------------------------------------------
+
+#[pyfunction]
+fn decode_agent_stream_rust<'py>(
+    py: Python<'py>,
+    lines: &Bound<'py, PyList>,
+) -> PyResult<Bound<'py, PyList>> {
+    // Collect lines, parse header, then yield records up to record_count.
+    // This mirrors the Python generator but returns a list for simplicity
+    // in the PyO3 bridge. The hot path (record decoding) is Rust-native.
+    let result = PyList::empty_bound(py);
+    let mut header: Option<ParsedHeader> = None;
+    let mut seen: usize = 0;
+    let mut expected: Option<usize> = None;
+    let mut raw_header_lines: Vec<String> = Vec::new();
+
+    for item in lines.iter() {
+        let raw_line: String = item.extract()?;
+        let line = raw_line.trim_end_matches('\n').trim_end_matches('\r');
+
+        if header.is_none() {
+            if raw_header_lines.is_empty() {
+                if line != AGENT_MAGIC {
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "Bad magic: expected {:?}, got {:?}",
+                        AGENT_MAGIC, line
+                    )));
+                }
+                raw_header_lines.push(line.to_string());
+                continue;
+            }
+            raw_header_lines.push(line.to_string());
+            // Try parsing header (skip magic at index 0)
+            let hdr_strs: Vec<&str> = raw_header_lines[1..].iter().map(|s| s.as_str()).collect();
+            match parse_header(&hdr_strs) {
+                Ok(h) => {
+                    expected = Some(h.record_count);
+                    header = Some(h);
+                }
+                Err(e) => {
+                    if e.contains("records: not found") {
+                        continue; // still buffering header lines
+                    }
+                    return Err(pyo3::exceptions::PyValueError::new_err(e));
+                }
+            }
+            continue;
+        }
+
+        if line.is_empty() {
+            continue;
+        }
+
+        let h = header.as_ref().unwrap();
+        let rec = decode_agent_record_rust(py, line, Some(h.meta_fields.clone())).map_err(|e| {
+            pyo3::exceptions::PyValueError::new_err(format!("Row {}: {}", seen + 1, e))
+        })?;
+        seen += 1;
+        result.append(rec)?;
+
+        if let Some(exp) = expected {
+            if seen >= exp {
+                break;
+            }
+        }
+    }
+    Ok(result)
+}
+
+// ---------------------------------------------------------------------------
+// M1d: compress_context_rust -- context window compression
+// ---------------------------------------------------------------------------
+
+#[pyfunction]
+#[pyo3(signature = (
+    records,
+    strategy = "completed_sequences",
+    keep_priority = 2,
+    target_reduction = 0.5,
+    keep_types = None,
+    window_size = None,
+    preserve_cot = false,
+))]
+fn compress_context_rust<'py>(
+    py: Python<'py>,
+    records: &Bound<'py, PyList>,
+    strategy: &str,
+    keep_priority: i64,
+    target_reduction: f64,
+    keep_types: Option<Vec<String>>,
+    window_size: Option<usize>,
+    preserve_cot: bool,
+) -> PyResult<Bound<'py, PyList>> {
+    let _ = target_reduction; // informational only
+    let n = records.len();
+    if n == 0 {
+        return Ok(PyList::empty_bound(py));
+    }
+
+    match strategy {
+        "completed_sequences" => {
+            compress_completed_sequences(py, records, keep_priority, preserve_cot)
+        }
+        "keep_types" => {
+            let kt: std::collections::HashSet<String> = keep_types
+                .unwrap_or_else(|| vec!["msg".into(), "err".into(), "mem".into()])
+                .into_iter()
+                .collect();
+            let result = PyList::empty_bound(py);
+            for item in records.iter() {
+                let d: &Bound<'_, PyDict> = item.downcast()?;
+                let rtype: String = d
+                    .get_item("type")?
+                    .map(|v| v.extract().unwrap_or_default())
+                    .unwrap_or_default();
+                let pri = get_priority(&d);
+                if kt.contains(&rtype) || pri <= keep_priority {
+                    result.append(item)?;
+                }
+            }
+            Ok(result)
+        }
+        "sliding_window" => {
+            let ws = window_size.unwrap_or_else(|| std::cmp::max(10, n / 4));
+            if n <= ws {
+                // Return a copy of all records
+                let result = PyList::empty_bound(py);
+                for item in records.iter() {
+                    result.append(item)?;
+                }
+                return Ok(result);
+            }
+            // Summarize earlier, keep recent
+            let earlier = PyList::empty_bound(py);
+            let cutoff = n - ws;
+            for i in 0..cutoff {
+                earlier.append(records.get_item(i)?)?;
+            }
+            let summary = summarize_as_mem(py, &earlier)?;
+            let result = PyList::empty_bound(py);
+            for item in summary.iter() {
+                result.append(item)?;
+            }
+            for i in cutoff..n {
+                result.append(records.get_item(i)?)?;
+            }
+            Ok(result)
+        }
+        _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Unknown compression strategy: {:?}",
+            strategy
+        ))),
+    }
+}
+
+fn get_priority(rec: &Bound<'_, PyDict>) -> i64 {
+    match rec.get_item("priority") {
+        Ok(Some(v)) => v.extract::<i64>().unwrap_or(3),
+        _ => 3,
+    }
+}
+
+fn compress_completed_sequences<'py>(
+    py: Python<'py>,
+    records: &Bound<'py, PyList>,
+    keep_priority: i64,
+    preserve_cot: bool,
+) -> PyResult<Bound<'py, PyList>> {
+    // Phase 1: find completed tool+res pairs
+    let mut tool_ids: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut res_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for i in 0..records.len() {
+        let item_ref = records.get_item(i)?;
+        let d: &Bound<'_, PyDict> = item_ref.downcast()?;
+        let rtype: String = d
+            .get_item("type")?
+            .map(|v| v.extract().unwrap_or_default())
+            .unwrap_or_default();
+        let rid: String = d
+            .get_item("id")?
+            .map(|v| v.extract().unwrap_or_default())
+            .unwrap_or_default();
+        if rtype == "tool" {
+            tool_ids.entry(rid.clone()).or_insert(i);
+        }
+        if rtype == "res" {
+            res_ids.insert(rid);
+        }
+    }
+    let completed: std::collections::HashSet<String> = tool_ids
+        .keys()
+        .filter(|k| res_ids.contains(*k))
+        .cloned()
+        .collect();
+
+    let result = PyList::empty_bound(py);
+    let mut compressed_tools: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seq_counter: usize = 0;
+    let mut cot_counter: usize = 0;
+    let meta_names = ["parent_id", "from_agent", "to_agent", "priority"];
+
+    for i in 0..records.len() {
+        let item = records.get_item(i)?;
+        let d: &Bound<'_, PyDict> = item.downcast()?;
+        let rtype: String = d
+            .get_item("type")?
+            .map(|v| v.extract().unwrap_or_default())
+            .unwrap_or_default();
+        let rid: String = d
+            .get_item("id")?
+            .map(|v| v.extract().unwrap_or_default())
+            .unwrap_or_default();
+        let pri = get_priority(d);
+
+        if pri <= keep_priority {
+            result.append(item)?;
+            continue;
+        }
+
+        match rtype.as_str() {
+            "msg" | "plan" | "obs" | "err" | "mem" | "hyp" | "rag" => {
+                result.append(item)?;
+            }
+            "tool" if completed.contains(&rid) => {
+                if compressed_tools.contains(&rid) {
+                    continue;
+                }
+                compressed_tools.insert(rid.clone());
+                seq_counter += 1;
+                // Build summary mem record
+                let mem = build_compressed_mem(py, d, &rid, seq_counter, &meta_names)?;
+                result.append(mem)?;
+            }
+            "res" if completed.contains(&rid) => {
+                continue;
+            }
+            "cot" => {
+                if preserve_cot {
+                    cot_counter += 1;
+                    let mem = build_cot_mem(py, d, cot_counter, &meta_names)?;
+                    result.append(mem)?;
+                }
+                // else: drop cot
+            }
+            _ => {
+                result.append(item)?;
+            }
+        }
+    }
+    Ok(result)
+}
+
+fn build_compressed_mem<'py>(
+    py: Python<'py>,
+    tool_rec: &Bound<'py, PyDict>,
+    rid: &str,
+    seq: usize,
+    meta_names: &[&str],
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new_bound(py);
+    d.set_item("type", "mem")?;
+    d.set_item("id", format!("mem_cmp_{:03}", seq))?;
+    let tid: String = tool_rec
+        .get_item("thread_id")?
+        .map(|v| v.extract().unwrap_or_default())
+        .unwrap_or_default();
+    d.set_item("thread_id", &tid)?;
+    let step: i64 = tool_rec
+        .get_item("step")?
+        .map(|v| v.extract().unwrap_or(0))
+        .unwrap_or(0);
+    d.set_item("step", step)?;
+    let name: String = tool_rec
+        .get_item("name")?
+        .map(|v| v.extract().unwrap_or_default())
+        .unwrap_or_default();
+    d.set_item(
+        "key",
+        format!("tool_result_{}", if name.is_empty() { rid } else { &name }),
+    )?;
+    d.set_item("value", "")?;
+    d.set_item("confidence", 1.0)?;
+    d.set_item("ttl", py.None())?;
+    for mf in meta_names {
+        if let Ok(Some(v)) = tool_rec.get_item(*mf) {
+            if !v.is_none() {
+                d.set_item(*mf, v)?;
+            }
+        }
+    }
+    Ok(d)
+}
+
+fn build_cot_mem<'py>(
+    py: Python<'py>,
+    cot_rec: &Bound<'py, PyDict>,
+    counter: usize,
+    meta_names: &[&str],
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new_bound(py);
+    d.set_item("type", "mem")?;
+    d.set_item("id", format!("mem_cot_{:03}", counter))?;
+    let tid: String = cot_rec
+        .get_item("thread_id")?
+        .map(|v| v.extract().unwrap_or_default())
+        .unwrap_or_default();
+    d.set_item("thread_id", &tid)?;
+    let step: i64 = cot_rec
+        .get_item("step")?
+        .map(|v| v.extract().unwrap_or(0))
+        .unwrap_or(0);
+    d.set_item("step", step)?;
+    let cot_type: String = cot_rec
+        .get_item("cot_type")?
+        .map(|v| v.extract().unwrap_or("step".into()))
+        .unwrap_or("step".into());
+    let index: i64 = cot_rec
+        .get_item("index")?
+        .map(|v| v.extract().unwrap_or(counter as i64))
+        .unwrap_or(counter as i64);
+    d.set_item("key", format!("cot_{}_{}", cot_type, index))?;
+    let text: String = cot_rec
+        .get_item("text")?
+        .map(|v| v.extract().unwrap_or_default())
+        .unwrap_or_default();
+    let truncated = if text.len() > 500 {
+        &text[..500]
+    } else {
+        &text
+    };
+    d.set_item("value", truncated)?;
+    let conf: f64 = cot_rec
+        .get_item("confidence")?
+        .map(|v| v.extract().unwrap_or(1.0))
+        .unwrap_or(1.0);
+    d.set_item("confidence", conf)?;
+    d.set_item("ttl", py.None())?;
+    for mf in meta_names {
+        if let Ok(Some(v)) = cot_rec.get_item(*mf) {
+            if !v.is_none() {
+                d.set_item(*mf, v)?;
+            }
+        }
+    }
+    Ok(d)
+}
+
+fn summarize_as_mem<'py>(
+    py: Python<'py>,
+    records: &Bound<'py, PyList>,
+) -> PyResult<Bound<'py, PyList>> {
+    // Group by thread_id, produce one mem summary per thread
+    let mut by_thread: std::collections::HashMap<
+        String,
+        (usize, std::collections::HashSet<String>, i64),
+    > = std::collections::HashMap::new();
+
+    for item in records.iter() {
+        let d: &Bound<'_, PyDict> = item.downcast()?;
+        let tid: String = d
+            .get_item("thread_id")?
+            .map(|v| v.extract().unwrap_or_default())
+            .unwrap_or_default();
+        let rtype: String = d
+            .get_item("type")?
+            .map(|v| v.extract().unwrap_or_default())
+            .unwrap_or_default();
+        let step: i64 = d
+            .get_item("step")?
+            .map(|v| v.extract().unwrap_or(0))
+            .unwrap_or(0);
+        let entry = by_thread
+            .entry(tid)
+            .or_insert((0, std::collections::HashSet::new(), 0));
+        entry.0 += 1;
+        entry.1.insert(rtype);
+        if step > entry.2 {
+            entry.2 = step;
+        }
+    }
+
+    let result = PyList::empty_bound(py);
+    for (tid, (count, types, max_step)) in &by_thread {
+        let d = PyDict::new_bound(py);
+        d.set_item("type", "mem")?;
+        d.set_item("id", format!("mem_summary_{}", tid))?;
+        d.set_item("thread_id", tid.as_str())?;
+        d.set_item("step", *max_step)?;
+        d.set_item("key", format!("context_summary_{}", tid))?;
+        let mut sorted_types: Vec<&String> = types.iter().collect();
+        sorted_types.sort();
+        let types_str = sorted_types
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+        d.set_item(
+            "value",
+            format!(
+                "Compressed {} records (types: {}) up to step {}",
+                count, types_str, max_step
+            ),
+        )?;
+        d.set_item("confidence", 0.9)?;
+        d.set_item("ttl", py.None())?;
+        result.append(d)?;
+    }
+    Ok(result)
+}
+
+// ---------------------------------------------------------------------------
+// M1e: chunk_payload_rust / merge_chunks_rust
+// ---------------------------------------------------------------------------
+
+#[pyfunction]
+#[pyo3(signature = (
+    records,
+    token_budget,
+    thread_id = None,
+    meta_fields = None,
+    overlap = 0,
+    parent_payload_id = None,
+    session_id = None,
+))]
+fn chunk_payload_rust<'py>(
+    py: Python<'py>,
+    records: &Bound<'py, PyList>,
+    token_budget: i64,
+    thread_id: Option<String>,
+    meta_fields: Option<Vec<String>>,
+    overlap: usize,
+    parent_payload_id: Option<String>,
+    session_id: Option<String>,
+) -> PyResult<Bound<'py, PyList>> {
+    let mf = meta_fields.unwrap_or_default();
+    let n = records.len();
+
+    if n == 0 {
+        let empty_payload = encode_agent_payload_rust(
+            py,
+            &PyList::empty_bound(py),
+            thread_id.clone(),
+            Some(token_budget),
+            Some(mf.clone()),
+            true,
+            false,
+            None,
+            None,
+            None,
+            session_id.clone(),
+            None,
+            true,
+        )?;
+        let result = PyList::empty_bound(py);
+        result.append(empty_payload)?;
+        return Ok(result);
+    }
+
+    // Group records into atomic units (tool+res pairs kept together)
+    let mut units: Vec<Vec<usize>> = Vec::new(); // indices into records
+    let mut pending_tools: std::collections::HashMap<String, Vec<usize>> =
+        std::collections::HashMap::new();
+
+    for i in 0..n {
+        let _item_tmp = records.get_item(i)?;
+        let d: &Bound<'_, PyDict> = _item_tmp.downcast()?;
+        let rtype: String = d
+            .get_item("type")?
+            .map(|v| v.extract().unwrap_or_default())
+            .unwrap_or_default();
+        let rid: String = d
+            .get_item("id")?
+            .map(|v| v.extract().unwrap_or_default())
+            .unwrap_or_default();
+
+        if rtype == "tool" {
+            let unit_idx = units.len();
+            units.push(vec![i]);
+            pending_tools.entry(rid).or_default().push(unit_idx);
+        } else if rtype == "res" {
+            if let Some(tool_units) = pending_tools.get_mut(&rid) {
+                if let Some(unit_idx) = tool_units.first().copied() {
+                    units[unit_idx].push(i);
+                    tool_units.remove(0);
+                    if tool_units.is_empty() {
+                        pending_tools.remove(&rid);
+                    }
+                    continue;
+                }
+            }
+            units.push(vec![i]);
+        } else {
+            units.push(vec![i]);
+        }
+    }
+
+    // Estimate token cost per unit
+    let unit_costs: Vec<i64> = units
+        .iter()
+        .map(|unit| {
+            unit.iter()
+                .map(|&idx| {
+                    let _item_tmp = records.get_item(idx).unwrap();
+                    let d: &Bound<'_, PyDict> = _item_tmp.downcast().unwrap();
+                    let row = encode_agent_record_rust(py, d, Some(mf.clone())).unwrap_or_default();
+                    rough_tokens(&row).max(1)
+                })
+                .sum()
+        })
+        .collect();
+
+    // Header overhead estimate
+    let header_sample = format!(
+        "{}\nthread: {}\ncontext_window: {}\nrecords: 9999\n",
+        AGENT_MAGIC,
+        thread_id.as_deref().unwrap_or(""),
+        token_budget
+    );
+    let header_overhead = rough_tokens(&header_sample);
+    let effective_budget = std::cmp::max(10, token_budget - header_overhead);
+
+    // Pack units into chunks
+    let uuid_mod = py.import_bound("uuid")?;
+    let result = PyList::empty_bound(py);
+    let mut current_indices: Vec<usize> = Vec::new(); // unit indices
+    let mut current_tokens: i64 = 0;
+    let mut prev_payload_id = parent_payload_id;
+
+    let flush = |py: Python<'_>,
+                 unit_indices: &[usize],
+                 prev_id: Option<String>,
+                 units: &[Vec<usize>],
+                 records: &Bound<'_, PyList>,
+                 mf: &[String],
+                 thread_id: &Option<String>,
+                 token_budget: i64,
+                 session_id: &Option<String>,
+                 uuid_mod: &Bound<'_, PyAny>|
+     -> PyResult<(String, String)> {
+        let flat = PyList::empty_bound(py);
+        for &ui in unit_indices {
+            for &ri in &units[ui] {
+                flat.append(records.get_item(ri)?)?;
+            }
+        }
+        let pid = uuid_mod.call_method0("uuid4")?.str()?.to_string();
+        let payload = encode_agent_payload_rust(
+            py,
+            &flat,
+            thread_id.clone(),
+            Some(token_budget),
+            Some(mf.to_vec()),
+            true,
+            false,
+            Some(pid.clone()),
+            prev_id,
+            None,
+            session_id.clone(),
+            None,
+            false,
+        )?;
+        Ok((payload, pid))
+    };
+
+    for (ui, cost) in unit_costs.iter().enumerate() {
+        if !current_indices.is_empty() && current_tokens + cost > effective_budget {
+            let (payload, pid) = flush(
+                py,
+                &current_indices,
+                prev_payload_id.clone(),
+                &units,
+                records,
+                &mf,
+                &thread_id,
+                token_budget,
+                &session_id,
+                &uuid_mod,
+            )?;
+            result.append(payload)?;
+            prev_payload_id = Some(pid);
+            if overlap > 0 && current_indices.len() > overlap {
+                let start = current_indices.len() - overlap;
+                current_indices = current_indices[start..].to_vec();
+                current_tokens = current_indices.iter().map(|&idx| unit_costs[idx]).sum();
+            } else {
+                current_indices.clear();
+                current_tokens = 0;
+            }
+        }
+        current_indices.push(ui);
+        current_tokens += cost;
+    }
+
+    if !current_indices.is_empty() {
+        let (payload, _) = flush(
+            py,
+            &current_indices,
+            prev_payload_id,
+            &units,
+            records,
+            &mf,
+            &thread_id,
+            token_budget,
+            &session_id,
+            &uuid_mod,
+        )?;
+        result.append(payload)?;
+    }
+
+    Ok(result)
+}
+
+#[pyfunction]
+fn merge_chunks_rust<'py>(
+    py: Python<'py>,
+    payloads: &Bound<'py, PyList>,
+) -> PyResult<Bound<'py, PyList>> {
+    let mut seen: std::collections::HashSet<(String, String, i64)> =
+        std::collections::HashSet::new();
+    let result = PyList::empty_bound(py);
+
+    for payload_item in payloads.iter() {
+        let text: String = payload_item.extract()?;
+        let records = decode_agent_payload_rust(py, &text)?;
+        for item in records.iter() {
+            let d: &Bound<'_, PyDict> = item.downcast()?;
+            let rid: String = d
+                .get_item("id")?
+                .map(|v| v.extract().unwrap_or_default())
+                .unwrap_or_default();
+            let tid: String = d
+                .get_item("thread_id")?
+                .map(|v| v.extract().unwrap_or_default())
+                .unwrap_or_default();
+            let step: i64 = d
+                .get_item("step")?
+                .map(|v| v.extract().unwrap_or(0))
+                .unwrap_or(0);
+            let key = (rid, tid, step);
+            if seen.insert(key) {
+                result.append(item)?;
+            }
+        }
+    }
+    Ok(result)
+}
+
+// ---------------------------------------------------------------------------
+// M1f: parse_llm_output_rust -- repair malformed LLM output
+// ---------------------------------------------------------------------------
+
+#[pyfunction]
+#[pyo3(signature = (raw_text, thread_id = None, strict = false))]
+fn parse_llm_output_rust(
+    py: Python<'_>,
+    raw_text: &str,
+    thread_id: Option<String>,
+    strict: bool,
+) -> PyResult<String> {
+    // Strip markdown fences
+    let lines: Vec<&str> = raw_text
+        .lines()
+        .filter(|l| !l.trim().starts_with("```"))
+        .collect();
+    let cleaned = lines.join("\n");
+    let cleaned = cleaned.trim();
+
+    // Find magic line
+    let all_lines: Vec<&str> = cleaned.lines().collect();
+    let magic_idx = all_lines.iter().position(|l| l.trim() == AGENT_MAGIC);
+
+    let repair_tid = thread_id.as_deref().unwrap_or("REPAIR");
+
+    if magic_idx.is_none() {
+        let msg = format!("No '{}' magic line found in LLM output", AGENT_MAGIC);
+        if strict {
+            return Err(pyo3::exceptions::PyValueError::new_err(msg));
+        }
+        return make_error_payload(py, &msg, repair_tid);
+    }
+
+    let mi = magic_idx.unwrap();
+    let work_lines = &all_lines[mi..];
+
+    // Separate header from data
+    let mut header_lines: Vec<String> = Vec::new();
+    let mut data_lines: Vec<String> = Vec::new();
+    let mut past_records = false;
+    let is_data_line = |s: &str| -> bool {
+        if s.is_empty() {
+            return false;
+        }
+        let first = s.split('|').next().unwrap_or("").trim();
+        schema_index(first).is_some()
+    };
+    let header_prefixes = [
+        "thread: ",
+        "context_window: ",
+        "context_used: ",
+        "payload_id: ",
+        "parent_payload_id: ",
+        "agent_id: ",
+        "session_id: ",
+        "schema_version: ",
+        "meta: ",
+        "records: ",
+    ];
+    let is_header_line = |s: &str| -> bool { header_prefixes.iter().any(|p| s.starts_with(p)) };
+
+    for &line in &work_lines[1..] {
+        let stripped = line.trim();
+        if stripped.is_empty() {
+            continue;
+        }
+        if !past_records && is_header_line(stripped) {
+            header_lines.push(stripped.to_string());
+            if stripped.starts_with("records: ") {
+                past_records = true;
+            }
+        } else if is_data_line(stripped) {
+            data_lines.push(stripped.to_string());
+        } else if !past_records {
+            header_lines.push(stripped.to_string());
+        }
+    }
+
+    // Fix record count
+    let actual_count = data_lines.len();
+    let mut found_records = false;
+    for h in header_lines.iter_mut() {
+        if h.starts_with("records: ") {
+            *h = format!("records: {}", actual_count);
+            found_records = true;
+        }
+    }
+    if !found_records {
+        header_lines.push(format!("records: {}", actual_count));
+    }
+
+    // Reassemble
+    let mut repaired = String::with_capacity(256);
+    repaired.push_str(AGENT_MAGIC);
+    repaired.push('\n');
+    for h in &header_lines {
+        repaired.push_str(h);
+        repaired.push('\n');
+    }
+    for d in &data_lines {
+        repaired.push_str(d);
+        repaired.push('\n');
+    }
+
+    // Validate
+    let (ok, _) = validate_agent_payload_rust(py, &repaired, false)?;
+    if ok {
+        return Ok(repaired);
+    }
+
+    // Last resort: decode individual rows and re-encode good ones
+    let mut meta_fields: Vec<String> = Vec::new();
+    for h in &header_lines {
+        if h.starts_with("meta: ") {
+            meta_fields = h[6..]
+                .split(',')
+                .map(|f| f.trim().to_string())
+                .filter(|f| !f.is_empty())
+                .collect();
+        }
+    }
+
+    let mut good_records: Vec<Bound<'_, PyDict>> = Vec::new();
+    for row in &data_lines {
+        match decode_agent_record_rust(py, row, Some(meta_fields.clone())) {
+            Ok(rec) => good_records.push(rec),
+            Err(_) => continue,
+        }
+    }
+
+    if good_records.is_empty() {
+        let msg = "Could not repair LLM output";
+        if strict {
+            return Err(pyo3::exceptions::PyValueError::new_err(msg));
+        }
+        return make_error_payload(py, msg, repair_tid);
+    }
+
+    let good_list = PyList::empty_bound(py);
+    for rec in &good_records {
+        good_list.append(rec)?;
+    }
+
+    match encode_agent_payload_rust(
+        py,
+        &good_list,
+        thread_id.clone(),
+        None,
+        Some(meta_fields),
+        true,
+        false,
+        None,
+        None,
+        None,
+        None,
+        None,
+        false,
+    ) {
+        Ok(result) => {
+            let (ok2, _) = validate_agent_payload_rust(py, &result, false)?;
+            if ok2 {
+                return Ok(result);
+            }
+            let msg = "Repair produced invalid payload";
+            if strict {
+                return Err(pyo3::exceptions::PyValueError::new_err(msg));
+            }
+            make_error_payload(py, msg, repair_tid)
+        }
+        Err(e) => {
+            let msg = format!("Repair failed: {}", e);
+            if strict {
+                return Err(pyo3::exceptions::PyValueError::new_err(msg));
+            }
+            make_error_payload(py, &msg, repair_tid)
+        }
+    }
+}
+
+fn make_error_payload(py: Python<'_>, msg: &str, thread_id: &str) -> PyResult<String> {
+    let rec = PyDict::new_bound(py);
+    rec.set_item("type", "err")?;
+    rec.set_item("id", "er_val_001")?;
+    rec.set_item("thread_id", thread_id)?;
+    rec.set_item("step", 1)?;
+    rec.set_item("code", "VALIDATION_FAILED")?;
+    rec.set_item("message", msg)?;
+    rec.set_item("source", "validator")?;
+    rec.set_item("recoverable", false)?;
+    let records = PyList::empty_bound(py);
+    records.append(rec)?;
+    encode_agent_payload_rust(
+        py, &records, None, None, None, true, false, None, None, None, None, None, false,
+    )
+}
+
+// ---------------------------------------------------------------------------
+// M1g: count_tokens_exact_rust / count_tokens_exact_records_rust
+//
+// Uses the existing bpe_split + bpe_chunk_tokens already in this file.
+// ---------------------------------------------------------------------------
+
+#[pyfunction]
+fn count_tokens_exact_rust(text: &str) -> usize {
+    if text.is_empty() {
+        return 0;
+    }
+    let chunks = bpe_split(text);
+    if chunks.is_empty() {
+        return std::cmp::max(1, (text.len() + 3) / 4);
+    }
+    chunks.iter().map(|c| bpe_chunk_tokens(c)).sum()
+}
+
+#[pyfunction]
+#[pyo3(signature = (text, per_record_overhead = 3))]
+fn count_tokens_exact_records_rust(text: &str, per_record_overhead: usize) -> usize {
+    let base = count_tokens_exact_rust(text);
+    let n_rows = text.matches('\n').count().saturating_sub(3);
+    base + n_rows * per_record_overhead
+}
+
 #[cfg(test)]
 mod agent_tests {
     use super::*;
@@ -4304,6 +5177,24 @@ mod agent_tests {
     fn magic_constant() {
         assert_eq!(AGENT_MAGIC, "ULMEN-AGENT v1");
     }
+
+    #[test]
+    fn count_tokens_exact_empty() {
+        assert_eq!(count_tokens_exact_rust(""), 0);
+    }
+
+    #[test]
+    fn count_tokens_exact_short() {
+        assert!(count_tokens_exact_rust("hello") >= 1);
+    }
+
+    #[test]
+    fn count_tokens_exact_records_overhead() {
+        let text = "ULMEN-AGENT v1\nrecords: 2\nrow1\nrow2\n";
+        let base = count_tokens_exact_rust(text);
+        let with_oh = count_tokens_exact_records_rust(text, 5);
+        assert!(with_oh >= base);
+    }
 }
 
 #[pymodule]
@@ -4329,5 +5220,12 @@ fn _ulmen_rust(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(encode_agent_payload_rust, m)?)?;
     m.add_function(wrap_pyfunction!(decode_agent_payload_rust, m)?)?;
     m.add_function(wrap_pyfunction!(validate_agent_payload_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_agent_stream_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(compress_context_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(chunk_payload_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(merge_chunks_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_llm_output_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(count_tokens_exact_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(count_tokens_exact_records_rust, m)?)?;
     Ok(())
 }
