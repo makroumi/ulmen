@@ -2691,6 +2691,307 @@ fn decode_ulmen_llm_rust<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py
 }
 
 // ---------------------------------------------------------------------------
+// Token counting — cl100k_base BPE approximation (zero external deps)
+// ---------------------------------------------------------------------------
+
+/// Check if a byte is ASCII alphanumeric
+#[inline(always)]
+fn is_alnum(b: u8) -> bool {
+    b.is_ascii_alphanumeric()
+}
+
+/// Split text into pre-token chunks (approximates cl100k_base pre-tokenizer).
+fn bpe_split(text: &str) -> Vec<&str> {
+    let bytes = text.as_bytes();
+    let mut chunks = Vec::new();
+    let mut i = 0;
+
+    while i < bytes.len() {
+        let start = i;
+
+        // Contraction: 's 't 're 've 'm 'll 'd
+        if bytes[i] == b'\'' && i + 1 < bytes.len() {
+            let next = bytes[i + 1];
+            if next == b's' || next == b't' || next == b'm' || next == b'd' {
+                i += 2;
+                chunks.push(&text[start..i]);
+                continue;
+            }
+            if i + 2 < bytes.len() {
+                let nn = bytes[i + 2];
+                if (next == b'r' && nn == b'e')
+                    || (next == b'v' && nn == b'e')
+                    || (next == b'l' && nn == b'l')
+                {
+                    i += 3;
+                    chunks.push(&text[start..i]);
+                    continue;
+                }
+            }
+        }
+
+        // Word run (ASCII alpha + extended Latin)
+        if bytes[i].is_ascii_alphabetic() || bytes[i] >= 0xC0 {
+            while i < bytes.len() && (bytes[i].is_ascii_alphabetic() || bytes[i] >= 0x80) {
+                i += 1;
+            }
+            chunks.push(&text[start..i]);
+            continue;
+        }
+
+        // Digit run (up to 3 digits)
+        if bytes[i].is_ascii_digit() {
+            let mut count = 0;
+            while i < bytes.len() && bytes[i].is_ascii_digit() && count < 3 {
+                i += 1;
+                count += 1;
+            }
+            chunks.push(&text[start..i]);
+            continue;
+        }
+
+        // Whitespace run
+        if bytes[i].is_ascii_whitespace() {
+            while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+                i += 1;
+            }
+            chunks.push(&text[start..i]);
+            continue;
+        }
+
+        // Punctuation / symbol run
+        while i < bytes.len()
+            && !bytes[i].is_ascii_alphanumeric()
+            && !bytes[i].is_ascii_whitespace()
+            && bytes[i] < 0x80
+        {
+            i += 1;
+        }
+        if i > start {
+            chunks.push(&text[start..i]);
+        } else {
+            // Single byte fallback (non-ASCII non-alpha)
+            i += 1;
+            while i < bytes.len() && bytes[i] >= 0x80 && bytes[i] < 0xC0 {
+                i += 1; // consume continuation bytes
+            }
+            chunks.push(&text[start..i]);
+        }
+    }
+
+    chunks
+}
+
+/// Estimate BPE token count for one pre-token chunk.
+#[inline]
+fn bpe_chunk_tokens(chunk: &str) -> usize {
+    let n = chunk.len();
+    if n <= 4 {
+        1
+    } else if n <= 8 {
+        2
+    } else {
+        (n + 3) / 4
+    }
+}
+
+/// Count tokens using cl100k_base-compatible approximation.
+#[pyfunction]
+fn count_tokens(text: &str) -> usize {
+    if text.is_empty() {
+        return 0;
+    }
+    let chunks = bpe_split(text);
+    if chunks.is_empty() {
+        return std::cmp::max(1, (text.len() + 3) / 4);
+    }
+    chunks.iter().map(|c| bpe_chunk_tokens(c)).sum()
+}
+
+/// Rough token estimate (chars / 4). Fast but less accurate.
+#[pyfunction]
+fn estimate_tokens(text: &str) -> usize {
+    (text.len() + 3) / 4
+}
+
+// ---------------------------------------------------------------------------
+// JSON bridge — convert between JSON and ULMEN-AGENT format
+// ---------------------------------------------------------------------------
+
+/// Convert a JSON string of records to ULMEN-AGENT payload.
+/// Records must be a JSON array of objects with "type", "id", "thread_id", "step" fields.
+#[pyfunction]
+#[pyo3(signature = (json_str, thread_id=None, context_window=None))]
+fn from_json(
+    py: Python<'_>,
+    json_str: &str,
+    thread_id: Option<&str>,
+    context_window: Option<usize>,
+) -> PyResult<String> {
+    // Parse JSON using Python's json module (reliable, handles edge cases)
+    let json_mod = py.import_bound("json")?;
+    let loaded = json_mod.call_method1("loads", (json_str,))?;
+    let records = loaded.downcast::<PyList>()?;
+
+    // Delegate to Python encode_agent_payload
+    let agent_mod = py.import_bound("ulmen.core._agent")?;
+    let kwargs = pyo3::types::PyDict::new_bound(py);
+    if let Some(tid) = thread_id {
+        kwargs.set_item("thread_id", tid)?;
+    }
+    if let Some(cw) = context_window {
+        kwargs.set_item("context_window", cw)?;
+    }
+    kwargs.set_item("auto_context", true)?;
+    let result = agent_mod.call_method("encode_agent_payload", (records,), Some(&kwargs))?;
+    result.extract::<String>()
+}
+
+/// Convert a ULMEN-AGENT payload to a JSON string.
+#[pyfunction]
+#[pyo3(signature = (payload, pretty=false))]
+fn to_json(py: Python<'_>, payload: &str, pretty: bool) -> PyResult<String> {
+    // Delegate to Python decode_agent_payload
+    let agent_mod = py.import_bound("ulmen.core._agent")?;
+    let records = agent_mod.call_method1("decode_agent_payload", (payload,))?;
+    let json_mod = py.import_bound("json")?;
+    let kwargs = pyo3::types::PyDict::new_bound(py);
+    if pretty {
+        kwargs.set_item("indent", 2)?;
+    }
+    kwargs.set_item("ensure_ascii", false)?;
+    let result = json_mod.call_method("dumps", (records,), Some(&kwargs))?;
+    result.extract::<String>()
+}
+
+/// Compare sizes: returns (json_bytes, ulmen_bytes, saving_pct)
+#[pyfunction]
+fn compare_sizes(py: Python<'_>, json_str: &str) -> PyResult<(usize, usize, f64)> {
+    let ulmen_payload = from_json(py, json_str, None, None)?;
+    let json_bytes = json_str.len();
+    let ulmen_bytes = ulmen_payload.len();
+    let saving = if json_bytes > 0 {
+        (1.0 - ulmen_bytes as f64 / json_bytes as f64) * 100.0
+    } else {
+        0.0
+    };
+    Ok((json_bytes, ulmen_bytes, saving))
+}
+
+// ---------------------------------------------------------------------------
+// ULMEN-AGENT Rust-native encode/decode helpers
+// ---------------------------------------------------------------------------
+
+/// Encode a single ULMEN-AGENT field value to its string representation.
+#[pyfunction]
+fn encode_agent_field(_py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<String> {
+    if value.is_none() {
+        return Ok("N".to_string());
+    }
+    if let Ok(b) = value.extract::<bool>() {
+        return Ok(if b { "T".to_string() } else { "F".to_string() });
+    }
+    if let Ok(i) = value.extract::<i64>() {
+        return Ok(i.to_string());
+    }
+    if let Ok(f) = value.extract::<f64>() {
+        if f.is_nan() {
+            return Ok("nan".to_string());
+        }
+        if f.is_infinite() {
+            return Ok(if f > 0.0 {
+                "inf".to_string()
+            } else {
+                "-inf".to_string()
+            });
+        }
+        return Ok(format!("{f}"));
+    }
+    if let Ok(s) = value.extract::<String>() {
+        if s.is_empty() {
+            return Ok("$0=".to_string());
+        }
+        if s.contains('|')
+            || s.contains('"')
+            || s.contains('\\')
+            || s.contains('\n')
+            || s.contains('\r')
+        {
+            let escaped = s
+                .replace('\\', "\\\\")
+                .replace('"', "\"\"")
+                .replace('\n', "\\n")
+                .replace('\r', "\\r");
+            return Ok(format!("\"{escaped}\""));
+        }
+        return Ok(s);
+    }
+    let repr = value.str()?.to_string();
+    if repr.contains('|')
+        || repr.contains('"')
+        || repr.contains('\\')
+        || repr.contains('\n')
+        || repr.contains('\r')
+    {
+        let escaped = repr
+            .replace('\\', "\\\\")
+            .replace('"', "\"\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r");
+        return Ok(format!("\"{escaped}\""));
+    }
+    Ok(repr)
+}
+
+/// Decode a single ULMEN-AGENT field token.
+#[pyfunction]
+fn decode_agent_field(token: &str, type_char: &str) -> PyResult<PyObject> {
+    Python::with_gil(|py| match token {
+        "N" => Ok(py.None()),
+        "T" => Ok(true.into_py(py)),
+        "F" => Ok(false.into_py(py)),
+        "$0=" => Ok("".into_py(py)),
+        _ => match type_char {
+            "d" => {
+                if let Ok(i) = token.parse::<i64>() {
+                    Ok(i.into_py(py))
+                } else {
+                    Ok(token.into_py(py))
+                }
+            }
+            "f" => match token {
+                "nan" => Ok(f64::NAN.into_py(py)),
+                "inf" => Ok(f64::INFINITY.into_py(py)),
+                "-inf" => Ok(f64::NEG_INFINITY.into_py(py)),
+                _ => {
+                    if let Ok(f) = token.parse::<f64>() {
+                        Ok(f.into_py(py))
+                    } else {
+                        Ok(token.into_py(py))
+                    }
+                }
+            },
+            "b" => match token {
+                "T" | "true" | "1" => Ok(true.into_py(py)),
+                "F" | "false" | "0" => Ok(false.into_py(py)),
+                _ => Ok(token.into_py(py)),
+            },
+            "s" | _ => {
+                if token.starts_with('"') && token.ends_with('"') && token.len() >= 2 {
+                    let inner = &token[1..token.len() - 1];
+                    let mut unescaped = inner.replace("\\\\", "\\");
+                    unescaped = unescaped.replace("\\n", "\n").replace("\\r", "\r");
+                    unescaped = unescaped.replace("\"\"", "\"");
+                    Ok(unescaped.into_py(py))
+                } else {
+                    Ok(token.into_py(py))
+                }
+            }
+        },
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Module registration
 // ---------------------------------------------------------------------------
 
@@ -2705,5 +3006,12 @@ fn _ulmen_rust(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(encode_ulmen_llm_rust, m)?)?;
     m.add_function(wrap_pyfunction!(decode_ulmen_llm_rust, m)?)?;
     m.add_function(wrap_pyfunction!(encode_binary_stream_chunked, m)?)?;
+    m.add_function(wrap_pyfunction!(count_tokens, m)?)?;
+    m.add_function(wrap_pyfunction!(estimate_tokens, m)?)?;
+    m.add_function(wrap_pyfunction!(from_json, m)?)?;
+    m.add_function(wrap_pyfunction!(to_json, m)?)?;
+    m.add_function(wrap_pyfunction!(compare_sizes, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_agent_field, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_agent_field, m)?)?;
     Ok(())
 }
