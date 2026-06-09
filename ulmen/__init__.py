@@ -231,6 +231,8 @@ __all__ = [
     "ThreadRegistry", "merge_threads",
     "ReplayLog",
     "parse_llm_output",
+    # JSON bridge
+    "from_json", "to_json", "compare_sizes",
     # Streaming
     "UlmenStreamEncoder",
     "stream_encode",
@@ -340,6 +342,76 @@ try:
         """Validate a ULMEN-AGENT v1 payload (Rust)."""
         return _vap_rust(text, structured)
 
+    # M1c-M1g: stream decoder, compression, chunking, repair, token counting
+    from ulmen._ulmen_rust import (  # type: ignore
+        decode_agent_stream_rust    as _das_rust,
+        compress_context_rust       as _cc_rust,
+        chunk_payload_rust          as _cp_rust,
+        merge_chunks_rust           as _mc_rust,
+        parse_llm_output_rust       as _plo_rust,
+        count_tokens_exact_rust     as _cte_rust,
+        count_tokens_exact_records_rust as _cter_rust,
+        from_json                   as _from_json_rust,
+        to_json                     as _to_json_rust,
+        compare_sizes               as _compare_sizes_rust,
+    )
+
+    def decode_agent_stream(lines):  # type: ignore[no-redef]
+        """Stream-decode a ULMEN-AGENT v1 payload (Rust)."""
+        return iter(_das_rust(list(lines)))
+
+    def compress_context(  # type: ignore[no-redef]
+        records, strategy="completed_sequences", keep_priority=2,
+        target_reduction=0.5, keep_types=None, window_size=None,
+        preserve_cot=False,
+    ):
+        """Compress agent records to reduce context window usage (Rust)."""
+        return list(_cc_rust(
+            records, strategy=strategy, keep_priority=keep_priority,
+            target_reduction=target_reduction, keep_types=keep_types,
+            window_size=window_size, preserve_cot=preserve_cot,
+        ))
+
+    def chunk_payload(  # type: ignore[no-redef]
+        records, token_budget, thread_id=None, meta_fields=(),
+        overlap=0, parent_payload_id=None, session_id=None,
+    ):
+        """Split records into chunked payloads (Rust)."""
+        return list(_cp_rust(
+            records, token_budget, thread_id=thread_id,
+            meta_fields=list(meta_fields) if meta_fields else [],
+            overlap=overlap, parent_payload_id=parent_payload_id,
+            session_id=session_id,
+        ))
+
+    def merge_chunks(payloads):  # type: ignore[no-redef]
+        """Merge chunked payloads back into records (Rust)."""
+        return list(_mc_rust(payloads))
+
+    def parse_llm_output(raw_text, thread_id=None, strict=False):  # type: ignore[no-redef]
+        """Parse and repair raw LLM output (Rust)."""
+        return _plo_rust(raw_text, thread_id=thread_id, strict=strict)
+
+    def count_tokens_exact(text):  # type: ignore[no-redef]
+        """Count tokens using cl100k_base BPE approximation (Rust)."""
+        return _cte_rust(text)
+
+    def count_tokens_exact_records(text, per_record_overhead=3):  # type: ignore[no-redef]
+        """Count tokens with per-record overhead (Rust)."""
+        return _cter_rust(text, per_record_overhead=per_record_overhead)
+
+    def from_json(json_str, thread_id=None, context_window=None):  # type: ignore[no-redef]
+        """Convert JSON array of records to ULMEN-AGENT payload (Rust)."""
+        return _from_json_rust(json_str, thread_id=thread_id, context_window=context_window)
+
+    def to_json(payload, pretty=False):  # type: ignore[no-redef]
+        """Convert ULMEN-AGENT payload to JSON string (Rust)."""
+        return _to_json_rust(payload, pretty=pretty)
+
+    def compare_sizes(json_str):  # type: ignore[no-redef]
+        """Compare JSON vs ULMEN-AGENT sizes. Returns (json_bytes, ulmen_bytes, saving_pct)."""
+        return _compare_sizes_rust(json_str)
+
     RUST_AVAILABLE = True
 
 except ImportError:  # pragma: no cover
@@ -412,7 +484,30 @@ except ImportError:  # pragma: no cover
                 f"records={len(self._data)}, pool={len(self._pool)})"
             )
 
+    # Fallback: from_json / to_json / compare_sizes when Rust not available
+    def from_json(json_str, thread_id=None, context_window=None):
+        """Convert JSON array of records to ULMEN-AGENT payload (Python fallback)."""
+        import json as _json
+        from ulmen.core._agent import encode_agent_payload as _eap
+        records = _json.loads(json_str)
+        return _eap(records, thread_id=thread_id, context_window=context_window, auto_context=True)
 
+    def to_json(payload, pretty=False):
+        """Convert ULMEN-AGENT payload to JSON string (Python fallback)."""
+        import json as _json
+        from ulmen.core._agent import decode_agent_payload as _dap
+        records = _dap(payload)
+        if pretty:
+            return _json.dumps(records, indent=2, ensure_ascii=False)
+        return _json.dumps(records, ensure_ascii=False)
+
+    def compare_sizes(json_str):
+        """Compare JSON vs ULMEN-AGENT sizes (Python fallback)."""
+        ulmen_payload = from_json(json_str)
+        json_bytes = len(json_str)
+        ulmen_bytes = len(ulmen_payload)
+        saving = (1.0 - ulmen_bytes / json_bytes) * 100.0 if json_bytes > 0 else 0.0
+        return (json_bytes, ulmen_bytes, saving)
 
 
 # ---------------------------------------------------------------------------

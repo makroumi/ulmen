@@ -10,8 +10,7 @@ See the LICENSE file in the project root for full license information.
 
 ULMEN is a serialization format built for three goals: smallest possible output, fastest possible encode and decode, and native compatibility with language model context windows.
 
-It ships as a pure Python library with an optional Rust acceleration layer
-that is drop-in compatible and produces byte-identical output.
+It ships as a Python library with an optional Rust acceleration layer, and a JavaScript/TypeScript package powered by the same Rust core compiled to WebAssembly. All implementations produce byte-identical output.
 
 ---
 
@@ -21,7 +20,7 @@ that is drop-in compatible and produces byte-identical output.
 
 | Document | Description |
 |---|---|
-| [Installation](getting-started/installation.md) | Install from source, build the Rust extension, verify setup |
+| [Installation](getting-started/installation.md) | Install from source, build the Rust extension, JavaScript setup |
 | [Quick Start](getting-started/quickstart.md) | Working examples in under five minutes |
 
 ### Guides
@@ -32,6 +31,7 @@ that is drop-in compatible and produces byte-identical output.
 | [Text Format](guides/text-format.md) | Human-readable line-oriented encoding |
 | [ULMEN](guides/ulmen.md) | LLM-native CSV surface for language model communication |
 | [Compression](guides/compression.md) | Zlib, pool tuning, strategy selection, size tradeoffs |
+| [JavaScript and TypeScript](guides/javascript.md) | WASM-powered encoding for Node.js, browsers, and edge runtimes |
 
 ### Reference
 
@@ -70,6 +70,22 @@ that is drop-in compatible and produces byte-identical output.
 
 ---
 
+## Language Support
+
+| Language | Installation | Acceleration | Output |
+|---|---|---|---|
+| Python 3.8+ | `pip install ulmen` | Rust via PyO3 | Canonical |
+| JavaScript / TypeScript | `npm install ulmen` | Rust via WASM | Byte-identical |
+| Node.js 16+ | `npm install ulmen` | Rust via WASM | Byte-identical |
+| Browser | ES module import | Rust via WASM | Byte-identical |
+| Deno | `npm:ulmen` | Rust via WASM | Byte-identical |
+| Edge runtimes | `npm install ulmen` | Rust via WASM | Byte-identical |
+
+All surfaces in all languages read and write the same binary format.
+A payload written in Python can be decoded in JavaScript and vice versa.
+
+---
+
 ## Key Numbers
 
 Measured on 1,000 records, 10 mixed-type columns, Python 3.12, rustc 1.92.
@@ -88,11 +104,12 @@ Measured on 1,000 records, 10 mixed-type columns, Python 3.12, rustc 1.92.
 | ULMEN binary Python | 13.579 | 0.09x |
 | ULMEN binary Rust | 1.013 | 1.2x faster |
 | ULMEN text Rust | 1.018 | 1.2x faster |
+| ULMEN binary WASM | 0.7ms | 1.8x faster |
 
 ---
 
 ## Test Coverage
 
-1,271 tests across unit, integration, performance, and smoke suites.
+1,379 tests across unit, integration, performance, and smoke suites.
 100% statement coverage across all modules.
 All tests pass with and without the Rust extension.

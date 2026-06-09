@@ -2833,27 +2833,30 @@ fn from_json(
     let loaded = json_mod.call_method1("loads", (json_str,))?;
     let records = loaded.downcast::<PyList>()?;
 
-    // Delegate to Python encode_agent_payload
-    let agent_mod = py.import_bound("ulmen.core._agent")?;
-    let kwargs = pyo3::types::PyDict::new_bound(py);
-    if let Some(tid) = thread_id {
-        kwargs.set_item("thread_id", tid)?;
-    }
-    if let Some(cw) = context_window {
-        kwargs.set_item("context_window", cw)?;
-    }
-    kwargs.set_item("auto_context", true)?;
-    let result = agent_mod.call_method("encode_agent_payload", (records,), Some(&kwargs))?;
-    result.extract::<String>()
+    // Encode with the Rust ULMEN-AGENT path directly.
+    encode_agent_payload_rust(
+        py,
+        records,
+        thread_id.map(|s| s.to_string()),
+        context_window.map(|v| v as i64),
+        None,
+        true,
+        false,
+        None,
+        None,
+        None,
+        None,
+        None,
+        false,
+    )
 }
 
 /// Convert a ULMEN-AGENT payload to a JSON string.
 #[pyfunction]
 #[pyo3(signature = (payload, pretty=false))]
 fn to_json(py: Python<'_>, payload: &str, pretty: bool) -> PyResult<String> {
-    // Delegate to Python decode_agent_payload
-    let agent_mod = py.import_bound("ulmen.core._agent")?;
-    let records = agent_mod.call_method1("decode_agent_payload", (payload,))?;
+    // Decode with the Rust ULMEN-AGENT path directly.
+    let records = decode_agent_payload_rust(py, payload)?;
     let json_mod = py.import_bound("json")?;
     let kwargs = pyo3::types::PyDict::new_bound(py);
     if pretty {

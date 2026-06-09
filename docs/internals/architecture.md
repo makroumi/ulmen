@@ -8,14 +8,25 @@ This document describes the codebase structure and the responsibilities of each 
 
 ```text
 ulmen/
-ulmen/
 ├── Cargo.lock
-├── Cargo.toml
+├── Cargo.toml              # Rust PyO3 extension configuration
 ├── pyproject.toml
 ├── README.md
 ├── SPEC.md
 ├── src/
-│   └── lib.rs
+│   └── lib.rs              # PyO3 Rust acceleration layer
+├── wasm/                   # Separate WASM crate for JavaScript
+│   ├── Cargo.toml          # wasm-bindgen configuration
+│   ├── src/
+│   │   └── lib.rs          # WASM exports, same core algorithms
+│   └── pkg/                # Generated WASM output (gitignored)
+├── js/                     # JavaScript/TypeScript npm package
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── README.md
+│   ├── src/
+│   │   └── index.ts        # TypeScript wrapper and Node.js/browser compat
+│   └── dist/               # Built npm package (gitignored)
 ├── ulmen/
 │   ├── __init__.py
 │   ├── core.py
@@ -34,7 +45,8 @@ ulmen/
 │       ├── _routing.py
 │       ├── _threading.py
 │       ├── _tokens.py
-│       └── _msgpack_compat.py
+│       ├── _msgpack_compat.py
+│       └── _streaming.py
 ├── tests/
 │   ├── conftest.py
 │   ├── smoke_test_comprehensive.py
@@ -58,6 +70,7 @@ ulmen/
 │       ├── test_replay.py
 │       ├── test_routing.py
 │       ├── test_strategies.py
+│       ├── test_streaming.py
 │       ├── test_threading.py
 │       └── test_tokens.py
 └── docs/
@@ -69,7 +82,8 @@ ulmen/
     │   ├── binary-format.md
     │   ├── text-format.md
     │   ├── ulmen.md
-    │   └── compression.md
+    │   ├── compression.md
+    │   └── javascript.md
     ├── reference/
     │   ├── api.md
     │   ├── constants.md

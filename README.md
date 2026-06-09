@@ -4,7 +4,12 @@ The AI engineering community is currently obsessed with expanding LLM context wi
 
 We are feeding state-of-the-art intelligence through a 20-year-old, heavily bloated web format.
 
-**ULMEN** is a drop-in Python/Rust serialization engine that treats the LLM context window and network IPC as strict hardware constraints. By natively incorporating exact token-counting, string pooling, and semantic validation at the C/Rust boundary, ULMEN delivers Protobuf-level density without requiring pre-compiled schemas.
+**ULMEN** is a drop-in Python/Rust/JavaScript serialization engine that treats the LLM context window and network IPC as strict hardware constraints. By natively incorporating exact token-counting, string pooling, and semantic validation at the C/Rust boundary, ULMEN delivers Protobuf-level density without requiring pre-compiled schemas.
+
+**Now available across the entire development ecosystem:**
+- **Python**: Full-featured with Rust acceleration
+- **JavaScript/TypeScript**: WASM-powered with identical output
+- **Node.js, Browser, Deno, Edge**: Universal compatibility
 
 ---
 
@@ -15,12 +20,14 @@ We are feeding state-of-the-art intelligence through a 20-year-old, heavily bloa
 - [Surfaces](#surfaces)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Cross-Platform Usage](#cross-platform-usage)
 - [API Reference](#api-reference)
 - [Wire Format Constants](#wire-format-constants)
 - [Utilities](#utilities)
 - [Architecture](#architecture)
 - [Running Tests](#running-tests)
 - [Format Specification](#format-specification)
+- [Documentation](#documentation)
 - [Versioning](#versioning)
 
 ---
@@ -31,14 +38,190 @@ We are feeding state-of-the-art intelligence through a 20-year-old, heavily bloa
 
 Benchmarks run on production-grade constraints (NVIDIA Tesla T4, 16GB VRAM):
 
-- 44% LLM Token Reduction: Eliminates syntax bloat, saving approximately $59,000 per 10 million agent loops (vs. GPT-4o input costs).
+- **44% LLM Token Reduction**: Eliminates syntax bloat, saving approximately $59,000 per 10 million agent loops (vs. GPT-4o input costs).
+- **3x Faster Reads**: Deserializes heavily nested payloads natively faster than the C-optimized orjson and standard json.
+- **4.1x Smaller IPC Footprint**: The pooled binary format drastically reduces microservice network egress and Redis cache saturation.
+- **The Semantic Firewall**: Unlike generic formats that silently pass broken traces, the ULMEN-AGENT protocol automatically rejects orphaned tools, backwards steps, and invalid enums before they trigger LLM hallucinations.
+- **Universal Compatibility**: Identical performance across Python, JavaScript, Node.js, browsers, and edge runtimes.
 
-- 3x Faster Reads: Deserializes heavily nested payloads natively faster than the C-optimized orjson and standard json.
-
-- 4.1x Smaller IPC Footprint: The pooled binary format drastically reduces microservice network egress and Redis cache saturation.
-
-- The Semantic Firewall: Unlike generic formats that silently pass broken traces, the ULMEN-AGENT protocol automatically rejects orphaned tools, backwards steps, and invalid enums before they trigger LLM hallucinations.
 ---
+
+## At a Glance
+
+```python
+# Python
+from ulmen import UlmenDictRust, encode_agent_payload
+records = [{"id": 1, "name": "Alice", "active": True}]
+binary = UlmenDictRust(records).encode_binary_zlib()
+```
+
+```javascript
+// JavaScript/TypeScript
+import { encode, UlmenDict } from 'ulmen';
+const records = [{id: 1, name: "Alice", active: true}];
+const binary = await encode(records);
+```
+
+```python
+# ULMEN-AGENT Protocol
+from ulmen import encode_agent_payload, compress_context
+agent_records = [
+    {"type": "msg", "id": "m1", "thread_id": "t1", "step": 1, 
+     "role": "user", "content": "Hello", "tokens": 5, "flagged": False}
+]
+payload = encode_agent_payload(agent_records, context_window=8000)
+```
+
+---
+## Installation
+### python
+```bash
+# With Rust acceleration (recommended)
+pip install ulmen
+
+# Development install
+git clone https://github.com/makroumi/ulmen
+cd ulmen
+pip install maturin
+maturin develop --release
+```
+
+### JavaScript/TypeScript
+```bash
+# npm
+npm install ulmen
+
+# yarn
+yarn add ulmen
+
+# pnpm  
+pnpm add ulmen
+```
+The library automatically detects available acceleration (Rust for Python, WASM for JavaScript) and falls back gracefully to pure implementations.
+
+---
+## Quick Start
+### Python
+```python
+from ulmen import UlmenDict, UlmenDictRust, encode_ulmen_llm
+
+records = [
+    {"id": 1, "name": "Alice", "city": "London", "score": 98.5, "active": True},
+    {"id": 2, "name": "Bob",   "city": "London", "score": 91.0, "active": False},
+    {"id": 3, "name": "Carol", "city": "Paris",  "score": 87.3, "active": True},
+]
+
+# Binary (smallest)
+ld = UlmenDict(records)
+binary = ld.encode_binary_pooled()
+zlib_compressed = ld.encode_binary_zlib()
+
+# Text (human-readable)
+text = ld.encode_text()
+
+# ULMEN (LLM-native)
+ulmen = encode_ulmen_llm(records)
+
+# Rust acceleration (drop-in, byte-identical)
+ld_rust = UlmenDictRust(records)
+binary = ld_rust.encode_binary_pooled()
+```
+
+### JavaScript
+```javascript
+import { encode, encodeZlib, UlmenDict } from 'ulmen';
+
+const records = [
+    {id: 1, name: "Alice", city: "London", score: 98.5, active: true},
+    {id: 2, name: "Bob", city: "London", score: 91.0, active: false},
+    {id: 3, name: "Carol", city: "Paris", score: 87.3, active: true}
+];
+
+// Simple encoding
+const binary = await encode(records);
+const compressed = await encodeZlib(records, 6);
+
+// Class-based API with caching
+const ulmen = new UlmenDict(records);
+await ulmen.init();
+const binary2 = await ulmen.encodeBinary();
+const poolSize = await ulmen.poolSize();
+```
+
+### TypeScript
+```typescript
+import { UlmenDict, encode } from 'ulmen';
+
+interface UserRecord {
+  id: number;
+  name: string;
+  score: number;
+  active: boolean;
+}
+
+const users: UserRecord[] = [
+  {id: 1, name: "Alice", score: 98.5, active: true}
+];
+
+const binary: Uint8Array = await encode(users);
+```
+
+--- 
+### Cross-Platform Usage
+#### Node.js Backend
+```javascript
+import { encode } from 'ulmen';
+import { writeFileSync } from 'fs';
+
+const data = await fetchFromDatabase();
+const binary = await encode(data);
+writeFileSync('data.ulmen', binary);
+```
+#### Browser Frontend
+```HTML
+<script type="module">
+import { encode } from './node_modules/ulmen/dist/index.js';
+
+const data = [{timestamp: Date.now(), message: "Hello"}];
+const binary = await encode(data);
+console.log(`Encoded: ${binary.length} bytes`);
+</script>
+```
+
+#### Deno
+```javascript
+import { encode } from "npm:ulmen";
+
+const data = [{message: "From Deno"}];
+const binary = await encode(data);
+```
+
+#### Edge Runtime (Cloudflare Workers, Vercel Edge, etc.)
+```javascript
+import { encode } from 'ulmen';
+
+export default {
+  async fetch(request) {
+    const data = [{ip: request.headers.get('CF-Connecting-IP')}];
+    const binary = await encode(data);
+    return new Response(binary);
+  }
+};
+```
+
+### Cross-Language Compability
+Data encoded in any language can be decoded by any other language:
+```python
+# Python encodes
+from ulmen import UlmenDictRust
+python_binary = UlmenDictRust([{"test": "data"}]).encode_binary()
+```
+```javascript
+// JavaScript decodes (when decoder available)
+import { decode } from 'ulmen';
+const decoded = await decode(python_binary);
+
+```
 
 ## Surfaces
 
@@ -92,56 +275,6 @@ Extended capabilities:
 - MessagePack compatibility via encode_msgpack, decode_msgpack
 
 ---
-
-## Installation
-
-### From source (with Rust acceleration)
-
-```bash
-git clone https://github.com/makroumi/ulmen
-cd ulmen
-pip install maturin
-maturin develop --release
-```
-
-### Python only (no Rust required)
-
-```bash
-pip install -e .
-```
-The library detects automatically whether the Rust extension is available and falls back to the pure Python implementation silently.
-
----
-
-## Quick Start
-
-```Python
-from ulmen import UlmenDict, UlmenDictRust, encode_ulmen_llm, decode_ulmen_llm
-
-records = [
-    {"id": 1, "name": "Alice", "city": "London", "score": 98.5, "active": True},
-    {"id": 2, "name": "Bob",   "city": "London", "score": 91.0, "active": False},
-    {"id": 3, "name": "Carol", "city": "Paris",  "score": 87.3, "active": True},
-]
-
-# Binary (smallest)
-ld     = UlmenDict(records)
-binary = ld.encode_binary_pooled()
-zlib_  = ld.encode_binary_zlib()
-
-# Text (human-readable)
-text = ld.encode_text()
-
-# ULMEN (LLM-native)
-ulmen = encode_ulmen_llm(records)
-back  = decode_ulmen_llm(ulmen)
-
-# Rust acceleration (drop-in, byte-identical)
-ld_rust = UlmenDictRust(records)
-binary  = ld_rust.encode_binary_pooled()
-text    = ld_rust.encode_text()
-ulmen   = ld_rust.encode_ulmen_llm()
-```
 
 ## ULMEN-AGENT
 
@@ -587,86 +720,98 @@ from ulmen import (
 
 ```text
 ulmen/
-├── Cargo.lock
-├── Cargo.toml
-├── pyproject.toml
-├── README.md
-├── SPEC.md
-├── src/
-│   └── lib.rs
-├── ulmen/
-│   ├── __init__.py
-│   ├── core.py
-│   └── core/
-│       ├── __init__.py
-│       ├── _constants.py
-│       ├── _primitives.py
-│       ├── _strategies.py
-│       ├── _text.py
-│       ├── _binary.py
-│       ├── _ulmen_llm.py
-│       ├── _agent.py
-│       ├── _api.py
-│       ├── _repair.py
-│       ├── _replay.py
-│       ├── _routing.py
-│       ├── _threading.py
-│       ├── _tokens.py
-│       ├── _msgpack_compat.py
-│       └── _streaming.py
-├── tests/
-│   ├── conftest.py
-│   ├── smoke_test_comprehensive.py
-│   ├── integration/
-│   │   ├── test_edge_cases.py
-│   │   ├── test_init_coverage.py
-│   │   └── test_rust_layer.py
-│   ├── perf/
-│   │   ├── test_benchmark.py
-│   │   ├── test_size.py
-│   │   └── test_speed.py
-│   └── unit/
-│       ├── test_agent.py
-│       ├── test_core_coverage.py
-│       ├── test_encoders.py
-│       ├── test_ulmendict.py
-│       ├── test_ulmen_llm.py
-│       ├── test_msgpack_compat.py
-│       ├── test_primitives.py
-│       ├── test_repair.py
-│       ├── test_replay.py
-│       ├── test_routing.py
-│       ├── test_strategies.py
-│       ├── test_streaming.py
-│       ├── test_threading.py
-│       └── test_tokens.py
-└── docs/
-    ├── index.md
+├── README.md                    # This file
+├── SPEC.md                      # Complete wire format specification
+├── LICENSE                      # Business Source License 1.1
+├── pyproject.toml              # Python package configuration
+├── Cargo.toml                  # Rust acceleration layer
+├── src/lib.rs                  # PyO3 Rust acceleration
+├── wasm/                       # WASM build for JavaScript
+│   ├── Cargo.toml             # WASM-specific Rust build
+│   ├── src/lib.rs             # wasm-bindgen exports
+│   └── pkg/                   # Generated WASM output
+├── js/                         # JavaScript/TypeScript package
+│   ├── package.json           # npm package configuration
+│   ├── README.md              # JS-specific documentation
+│   ├── src/index.ts           # TypeScript wrapper
+│   └── dist/                  # Built npm package
+├── ulmen/                      # Python package
+│   ├── __init__.py            # Main exports
+│   ├── core.py                # Backward compatibility
+│   └── core/                  # Implementation modules
+│       ├── _constants.py      # Wire format constants
+│       ├── _primitives.py     # Low-level encoding
+│       ├── _strategies.py     # Compression strategies
+│       ├── _text.py           # Text format codec
+│       ├── _binary.py         # Binary format codec
+│       ├── _ulmen_llm.py      # ULMEN format codec
+│       ├── _agent.py          # ULMEN-AGENT protocol
+│       ├── _api.py            # High-level classes
+│       ├── _streaming.py      # Streaming encode
+│       ├── _repair.py         # LLM output repair
+│       ├── _routing.py        # Multi-agent routing
+│       ├── _threading.py      # Thread tracking
+│       ├── _tokens.py         # Token counting
+│       ├── _replay.py         # Audit trail
+│       └── _msgpack_compat.py # MessagePack shim
+├── tests/                      # Test suite (100% coverage)
+│   ├── unit/                  # Unit tests
+│   ├── integration/           # Integration tests
+│   └── perf/                  # Performance tests
+└── docs/                       # Documentation
     ├── getting-started/
-    │   ├── installation.md
-    │   └── quickstart.md
     ├── guides/
-    │   ├── binary-format.md
-    │   ├── text-format.md
-    │   ├── ulmen.md
-    │   └── compression.md
     ├── reference/
-    │   ├── api.md
-    │   ├── constants.md
-    │   ├── primitives.md
-    │   └── benchmarks.md
     ├── agent/
-    │   ├── overview.md
-    │   ├── spec.md
-    │   └── system-prompt.md
     └── internals/
-        ├── architecture.md
-        └── wire-format.md
 ```
 
-Design principle: the Python layer is the normative specification.
-The Rust layer is an optimization producing identical output at higher speed.
-All encode results are cached after the first call and invalidated on mutation.
+## Design Principles
+1. **Python Reference:** The Python implementation is the normative specification
+2. **Rust Acceleration:** PyO3 layer provides identical output at higher speed
+3. **WASM Universality:** JavaScript layer uses same Rust core via wasm-bindgen
+4. **Byte Compatibility:** All implementations produce identical binary output
+5. **Zero Dependencies:** Core functionality requires no external libraries
+6. **Graceful Fallback:** Pure Python/JavaScript when acceleration unavailable
+
+## Build Targets
+```bash
+# Python wheel with Rust acceleration
+maturin build --release
+
+# JavaScript/WASM package
+cd wasm && wasm-pack build --target web --out-dir pkg
+cd js && npm run build
+
+# Development builds
+maturin develop  # Python
+npm run dev      # JavaScript
+```  
+
+---
+
+## Documentation
+### Comprehensive Guides
+- [Getting Started](docs/getting-started/README.md) - Installation and first steps
+- [Binary Format Guide](docs/guides/binary-format.md) - Understanding the wire format
+- [Text Format Guide](docs/guides/text-format.md) - Human-readable encoding
+- [ULMEN Format Guide](docs/guides/ulmen-format.md) - LLM-native CSV surface
+- [Compression Guide](docs/guides/compression.md) - String pooling and strategies
+- [ULMEN-AGENT Protocol](docs/agent/protocol.md) - Complete agent communication spec
+- [JavaScript Guide](docs/guides/javascript.md) - JavaScript/TypeScript usage
+- [API Reference](docs/reference/api.md) - Complete function and class documentation
+- [Performance Benchmarks](docs/reference/benchmarks.md) - Speed and size comparisons
+- [Wire Format Internals](docs/internals/wire-format.md) - Implementation details
+
+### Language-Specific Documentation
+- **Python:** This README + inline docstrings + [API Reference](docs/reference/api.md)
+- **JavaScript:** [js/README.md](js/README.md) + generated TypeScript definitions
+- **Rust:** [src/lib.rs](src/lib.rs) + [wasm/src/lib.rs](wasm/src/lib.rs) inline docs
+
+### Protocol Specifications
+- [SPEC.md](SPEC.md) - Complete wire format specification
+- [ULMEN-AGENT Spec](docs/agent/protocol.md) - Agent protocol details
+- [System Prompt](docs/agent/system-prompt.md) - Generated LLM instructions
 
 ---
 
