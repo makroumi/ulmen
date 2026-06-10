@@ -725,6 +725,14 @@ fn decode_record(line: &str, meta_field_names: &[&str]) -> Result<AgentRecord, A
     })
 }
 
+/// Public record decoder for use by repair module.
+pub fn decode_record_public(
+    line: &str,
+    meta_field_names: &[&str],
+) -> Result<AgentRecord, AgentError> {
+    decode_record(line, meta_field_names)
+}
+
 // ---------------------------------------------------------------------------
 // Header parser
 // ---------------------------------------------------------------------------
