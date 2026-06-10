@@ -1,0 +1,15 @@
+[package]
+name        = "ulmen"
+description = "ULMEN Rust acceleration layer (PyO3)"
+version.workspace     = true
+edition.workspace     = true
+license.workspace     = true
+
+[lib]
+name       = "ulmen_rust"
+crate-type = ["cdylib"]
+
+[dependencies]
+ulmen-core = { path = "../ulmen-core" }
+pyo3       = { version = "0.21", features = ["extension-module", "abi3-py310"] }
+flate2     = "1.0"

@@ -266,7 +266,12 @@ version = "1.0.3"
 dependencies = [
  "flate2",
  "pyo3",
+ "ulmen-core",
 ]
+
+[[package]]
+name = "ulmen-core"
+version = "1.0.3"
 
 [[package]]
 name = "unicode-ident"

@@ -1,17 +1,11 @@
-[package]
-name        = "ulmen"
+[workspace]
+members = ["ulmen-core", "ulmen-python"]
+resolver = "2"
+
+[workspace.package]
 version     = "1.0.3"
 edition     = "2021"
-description = "ULMEN Rust acceleration layer (PyO3)"
 license     = "BSL-1.1"
-
-[lib]
-name       = "ulmen_rust"
-crate-type = ["cdylib"]
-
-[dependencies]
-pyo3   = { version = "0.21", features = ["extension-module", "abi3-py310"] }
-flate2 = "1.0"
 
 [profile.release]
 opt-level     = 3

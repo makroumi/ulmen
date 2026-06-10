@@ -1,0 +1,9 @@
+[package]
+name        = "ulmen-core"
+description = "ULMEN agent protocol: encode, decode, validate, compress. Pure Rust, zero dependencies."
+version.workspace     = true
+edition.workspace     = true
+license.workspace     = true
+
+[dependencies]
+# Intentionally empty. Zero external dependencies.
