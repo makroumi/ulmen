@@ -270,14 +270,22 @@ RUST_AVAILABLE = False
 
 try:
     from ulmen._ulmen_rust import UlmenDictFullRust, UlmenDictRust  # type: ignore
+    from ulmen._ulmen_rust import (
+        decode_agent_payload_rust as _dap_rust,
+    )
+    from ulmen._ulmen_rust import (
+        decode_agent_record_rust as _dar_rust,
+    )
     from ulmen._ulmen_rust import decode_binary_records_rust as _dbr_rust  # type: ignore
     from ulmen._ulmen_rust import decode_ulmen_llm_rust as _dll_rust  # type: ignore
-    from ulmen._ulmen_rust import encode_ulmen_llm_rust as _ell_rust  # type: ignore
+    from ulmen._ulmen_rust import (
+        encode_agent_payload_rust as _eap_rust,
+    )
     from ulmen._ulmen_rust import (  # type: ignore
-        encode_agent_record_rust   as _ear_rust,
-        decode_agent_record_rust   as _dar_rust,
-        encode_agent_payload_rust  as _eap_rust,
-        decode_agent_payload_rust  as _dap_rust,
+        encode_agent_record_rust as _ear_rust,
+    )
+    from ulmen._ulmen_rust import encode_ulmen_llm_rust as _ell_rust  # type: ignore
+    from ulmen._ulmen_rust import (
         validate_agent_payload_rust as _vap_rust,
     )
 
@@ -343,17 +351,35 @@ try:
         return _vap_rust(text, structured)
 
     # M1c-M1g: stream decoder, compression, chunking, repair, token counting
-    from ulmen._ulmen_rust import (  # type: ignore
-        decode_agent_stream_rust    as _das_rust,
-        compress_context_rust       as _cc_rust,
-        chunk_payload_rust          as _cp_rust,
-        merge_chunks_rust           as _mc_rust,
-        parse_llm_output_rust       as _plo_rust,
-        count_tokens_exact_rust     as _cte_rust,
+    from ulmen._ulmen_rust import (
+        chunk_payload_rust as _cp_rust,
+    )
+    from ulmen._ulmen_rust import (
+        compare_sizes as _compare_sizes_rust,
+    )
+    from ulmen._ulmen_rust import (
+        compress_context_rust as _cc_rust,
+    )
+    from ulmen._ulmen_rust import (
         count_tokens_exact_records_rust as _cter_rust,
-        from_json                   as _from_json_rust,
-        to_json                     as _to_json_rust,
-        compare_sizes               as _compare_sizes_rust,
+    )
+    from ulmen._ulmen_rust import (
+        count_tokens_exact_rust as _cte_rust,
+    )
+    from ulmen._ulmen_rust import (  # type: ignore
+        decode_agent_stream_rust as _das_rust,
+    )
+    from ulmen._ulmen_rust import (
+        from_json as _from_json_rust,
+    )
+    from ulmen._ulmen_rust import (
+        merge_chunks_rust as _mc_rust,
+    )
+    from ulmen._ulmen_rust import (
+        parse_llm_output_rust as _plo_rust,
+    )
+    from ulmen._ulmen_rust import (
+        to_json as _to_json_rust,
     )
 
     def decode_agent_stream(lines):  # type: ignore[no-redef]
@@ -488,6 +514,7 @@ except ImportError:  # pragma: no cover
     def from_json(json_str, thread_id=None, context_window=None):
         """Convert JSON array of records to ULMEN-AGENT payload (Python fallback)."""
         import json as _json
+
         from ulmen.core._agent import encode_agent_payload as _eap
         records = _json.loads(json_str)
         return _eap(records, thread_id=thread_id, context_window=context_window, auto_context=True)
@@ -495,6 +522,7 @@ except ImportError:  # pragma: no cover
     def to_json(payload, pretty=False):
         """Convert ULMEN-AGENT payload to JSON string (Python fallback)."""
         import json as _json
+
         from ulmen.core._agent import decode_agent_payload as _dap
         records = _dap(payload)
         if pretty:

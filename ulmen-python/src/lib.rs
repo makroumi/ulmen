@@ -10,6 +10,14 @@
 
 #![allow(dead_code)]
 #![allow(unused_imports)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::manual_div_ceil)]
+#![allow(clippy::redundant_closure)]
+#![allow(clippy::useless_conversion)]
+#![allow(clippy::manual_strip)]
+#![allow(clippy::nonminimal_bool)]
+#![allow(clippy::wildcard_in_or_patterns)]
+#![allow(clippy::needless_borrow)]
 
 use flate2::write::ZlibEncoder;
 use flate2::Compression;

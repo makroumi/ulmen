@@ -36,9 +36,9 @@ fn bpe_split(text: &str) -> Vec<&str> {
         }
 
         // Latin word run
-        if b.is_ascii_alphabetic() || (b >= 0xC0 && b < 0xFF) {
+        if b.is_ascii_alphabetic() || (0xC0..0xFF).contains(&b) {
             let start = i;
-            while i < len && (bytes[i].is_ascii_alphabetic() || bytes[i] >= 0xC0) {
+            while i < len && (bytes[i].is_ascii_alphabetic() || (0xC0..=0xFF).contains(&bytes[i])) {
                 i += 1;
             }
             chunks.push(&text[start..i]);
@@ -100,7 +100,7 @@ fn bpe_chunk_tokens(chunk: &str) -> usize {
     } else if n <= 8 {
         2
     } else {
-        (n + 3) / 4
+        n.div_ceil(4)
     }
 }
 
@@ -112,7 +112,7 @@ pub fn count_tokens(text: &str) -> usize {
     }
     let chunks = bpe_split(text);
     if chunks.is_empty() {
-        return std::cmp::max(1, (text.len() + 3) / 4);
+        return std::cmp::max(1, text.len().div_ceil(4));
     }
     chunks.iter().map(|c| bpe_chunk_tokens(c)).sum()
 }
@@ -127,7 +127,7 @@ pub fn count_tokens_with_overhead(text: &str, per_record_overhead: usize) -> usi
 /// Rough estimate: bytes / 4. Fast but less accurate.
 #[inline]
 pub fn estimate_tokens(text: &str) -> usize {
-    (text.len() + 3) / 4
+    text.len().div_ceil(4)
 }
 
 #[cfg(test)]
@@ -147,7 +147,7 @@ mod tests {
     #[test]
     fn sentence() {
         let t = count_tokens("The quick brown fox jumps over the lazy dog.");
-        assert!(t >= 5 && t <= 25, "sentence tokens: {}", t);
+        assert!((5..=25).contains(&t), "sentence tokens: {}", t);
     }
 
     #[test]
@@ -168,19 +168,19 @@ mod tests {
     #[test]
     fn contractions() {
         let t = count_tokens("I'm don't we'll they've");
-        assert!(t >= 4);
+        assert!(t >= 4, "contraction tokens: {}", t);
     }
 
     #[test]
     fn digits() {
         let t = count_tokens("12345678");
-        assert!(t >= 2); // splits at 3-digit boundaries
+        assert!(t >= 2, "digit tokens: {}", t);
     }
 
     #[test]
     fn agent_payload() {
         let payload = "ULMEN-AGENT v1\nrecords: 1\nmsg|m1|t1|1|user|1|hello world|3|F\n";
         let t = count_tokens(payload);
-        assert!(t >= 3 && t <= 40, "agent payload tokens: {}", t);
+        assert!((3..=40).contains(&t), "agent payload tokens: {}", t);
     }
 }

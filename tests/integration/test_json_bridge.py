@@ -5,8 +5,6 @@ These test both Rust and Python paths since the interface is identical.
 """
 import json
 
-import pytest
-
 import ulmen
 
 

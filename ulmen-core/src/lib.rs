@@ -13,6 +13,7 @@
 //! Licensed under BSL-1.1.
 
 #![forbid(unsafe_code)]
+#![allow(clippy::result_large_err)]
 
 pub mod agent;
 pub mod chunk;

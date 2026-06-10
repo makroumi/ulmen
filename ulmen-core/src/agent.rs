@@ -130,7 +130,7 @@ impl RecordType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "msg" => Some(Self::Msg),
             "tool" => Some(Self::Tool),
@@ -637,7 +637,7 @@ fn decode_record(line: &str, meta_field_names: &[&str]) -> Result<AgentRecord, A
         return Err(AgentError::Parse("empty row".into()));
     }
 
-    let rtype = RecordType::from_str(tokens[0])
+    let rtype = RecordType::parse(tokens[0])
         .ok_or_else(|| AgentError::Parse(format!("unknown type: {:?}", tokens[0])))?;
 
     let schema = rtype.schema();
@@ -691,17 +691,17 @@ fn decode_record(line: &str, meta_field_names: &[&str]) -> Result<AgentRecord, A
         match *mf_name {
             "parent_id" => {
                 if tok != "N" {
-                    meta.parent_id = Some(FieldValue::decode(tok, b's')?.to_string_val());
+                    meta.parent_id = Some(FieldValue::decode(tok, b's')?.into_string());
                 }
             }
             "from_agent" => {
                 if tok != "N" {
-                    meta.from_agent = Some(FieldValue::decode(tok, b's')?.to_string_val());
+                    meta.from_agent = Some(FieldValue::decode(tok, b's')?.into_string());
                 }
             }
             "to_agent" => {
                 if tok != "N" {
-                    meta.to_agent = Some(FieldValue::decode(tok, b's')?.to_string_val());
+                    meta.to_agent = Some(FieldValue::decode(tok, b's')?.into_string());
                 }
             }
             "priority" => {
@@ -828,7 +828,7 @@ fn parse_header(lines: &[&str]) -> Result<ParsedHeaderInner, AgentError> {
 // ---------------------------------------------------------------------------
 
 impl FieldValue {
-    fn to_string_val(self) -> String {
+    fn into_string(self) -> String {
         match self {
             FieldValue::Str(s) => s,
             FieldValue::Null => String::new(),
@@ -878,13 +878,13 @@ mod tests {
             RecordType::Hyp,
             RecordType::Cot,
         ] {
-            assert_eq!(RecordType::from_str(rt.as_str()), Some(*rt));
+            assert_eq!(RecordType::parse(rt.as_str()), Some(*rt));
         }
     }
 
     #[test]
     fn record_type_unknown() {
-        assert_eq!(RecordType::from_str("xyz"), None);
+        assert_eq!(RecordType::parse("xyz"), None);
     }
 
     #[test]
@@ -995,8 +995,8 @@ mod tests {
 
     #[test]
     fn field_value_decode_float() {
-        if let FieldValue::Float(f) = FieldValue::decode("3.14", b'f').unwrap() {
-            assert!((f - 3.14).abs() < 0.001);
+        if let FieldValue::Float(f) = FieldValue::decode("1.23", b'f').unwrap() {
+            assert!((f - 1.23).abs() < 0.001);
         } else {
             panic!("expected float");
         }

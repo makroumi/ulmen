@@ -101,9 +101,8 @@ pub fn parse_llm_output(
     }
 
     // Try decoding the repaired payload
-    match AgentPayload::decode(&repaired) {
-        Ok(payload) => return Ok(payload),
-        Err(_) => {}
+    if let Ok(payload) = AgentPayload::decode(&repaired) {
+        return Ok(payload);
     }
 
     // Last resort: decode individual rows, keep good ones
@@ -141,7 +140,7 @@ fn is_data_line(s: &str) -> bool {
         return false;
     }
     let first = s.split('|').next().unwrap_or("").trim();
-    RecordType::from_str(first).is_some()
+    RecordType::parse(first).is_some()
 }
 
 fn extract_meta_fields(header_lines: &[String]) -> Vec<String> {

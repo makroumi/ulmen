@@ -132,7 +132,7 @@ pub fn chunk_payload(
 }
 
 /// Build atomic units: tool+res pairs are kept together.
-fn build_atomic_units<'a>(records: &'a [AgentRecord]) -> Vec<Vec<&'a AgentRecord>> {
+fn build_atomic_units(records: &[AgentRecord]) -> Vec<Vec<&AgentRecord>> {
     let mut units: Vec<Vec<&AgentRecord>> = Vec::new();
     let mut pending_tools: std::collections::HashMap<&str, Vec<usize>> =
         std::collections::HashMap::new();

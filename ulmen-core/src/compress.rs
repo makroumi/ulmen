@@ -16,7 +16,7 @@ pub enum CompressStrategy {
 }
 
 impl CompressStrategy {
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "completed_sequences" => Some(Self::CompletedSequences),
             "keep_types" => Some(Self::KeepTypes),
