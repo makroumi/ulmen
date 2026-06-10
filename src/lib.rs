@@ -3243,6 +3243,74 @@ fn agent_encode_str(s: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Zero-allocation field encoding -- writes directly into caller's buffer.
+// Used by encode_agent_record_inner on the hot path.
+// ---------------------------------------------------------------------------
+
+#[inline]
+fn agent_encode_field_into(v: &Bound<'_, PyAny>, out: &mut String) -> PyResult<()> {
+    if v.is_none() {
+        out.push('N');
+        return Ok(());
+    }
+    if let Ok(b) = v.extract::<bool>() {
+        out.push(if b { 'T' } else { 'F' });
+        return Ok(());
+    }
+    if let Ok(i) = v.extract::<i64>() {
+        use std::fmt::Write;
+        let _ = write!(out, "{}", i);
+        return Ok(());
+    }
+    if let Ok(f) = v.extract::<f64>() {
+        if f.is_nan() {
+            out.push_str("nan");
+        } else if f.is_infinite() {
+            out.push_str(if f > 0.0 { "inf" } else { "-inf" });
+        } else {
+            use std::fmt::Write;
+            let _ = write!(out, "{:?}", f);
+        }
+        return Ok(());
+    }
+    if let Ok(s) = v.extract::<String>() {
+        agent_encode_str_into(&s, out);
+        return Ok(());
+    }
+    let s = v.str()?.to_string();
+    agent_encode_str_into(&s, out);
+    Ok(())
+}
+
+#[inline]
+fn agent_encode_str_into(s: &str, out: &mut String) {
+    if s.is_empty() {
+        out.push_str("$0=");
+        return;
+    }
+    if s.contains('|')
+        || s.contains('"')
+        || s.contains('\\')
+        || s.contains('\n')
+        || s.contains('\r')
+    {
+        out.push('"');
+        for c in s.chars() {
+            match c {
+                '\\' => out.push_str("\\\\"),
+                '"' => out.push_str("\"\""),
+                '\n' => out.push_str("\\n"),
+                '\r' => out.push_str("\\r"),
+                _ => out.push(c),
+            }
+        }
+        out.push('"');
+    } else {
+        out.push_str(s);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Field decoding -- byte-identical to Python _decode_field
 // ---------------------------------------------------------------------------
 
@@ -3387,15 +3455,13 @@ fn agent_split_row(line: &str) -> Vec<&str> {
 // encode_agent_record_rust
 // ---------------------------------------------------------------------------
 
-#[pyfunction]
-#[pyo3(signature = (rec, meta_fields=None))]
-fn encode_agent_record_rust(
-    py: Python<'_>,
-    rec: &Bound<'_, PyDict>,
-    meta_fields: Option<Vec<String>>,
-) -> PyResult<String> {
-    let mf = meta_fields.unwrap_or_default();
+// ---------------------------------------------------------------------------
+// Inner encode: takes &[String] to avoid cloning meta_fields per record.
+// Writes directly into a String buffer to eliminate per-field allocations.
+// All hot-path callers (encode_agent_payload, chunk_payload) use this.
+// ---------------------------------------------------------------------------
 
+fn encode_agent_record_inner(rec: &Bound<'_, PyDict>, mf: &[String]) -> PyResult<String> {
     let rtype_obj = rec
         .get_item("type")?
         .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Record missing 'type' field"))?;
@@ -3406,37 +3472,155 @@ fn encode_agent_record_rust(
     })?;
     let schema = &SCHEMAS[si];
 
-    // Estimate capacity: type(4) + 4 common fields + type fields + meta
     let n_fields = 4 + schema.fields.len() + mf.len();
-    let mut parts: Vec<String> = Vec::with_capacity(n_fields);
+    let mut out = String::with_capacity(n_fields * 20);
 
-    parts.push(rtype.clone());
+    out.push_str(&rtype);
 
-    // Common fields: id, thread_id, step
-    for key in &["id", "thread_id", "step"] {
-        let val = rec
-            .get_item(*key)?
-            .unwrap_or_else(|| py.None().into_bound(py));
-        parts.push(agent_encode_field(&val)?);
-    }
+    // Common fields: id (string), thread_id (string), step (int).
+    // Use type-directed extraction: single downcast, no cascade.
+    out.push('|');
+    encode_field_typed_str(rec, "id", &mut out)?;
+    out.push('|');
+    encode_field_typed_str(rec, "thread_id", &mut out)?;
+    out.push('|');
+    encode_field_typed_int(rec, "step", &mut out)?;
 
-    // Type-specific fields
+    // Type-specific fields: use type_char to pick the right fast path.
     for fd in schema.fields {
-        let val = rec
-            .get_item(fd.name)?
-            .unwrap_or_else(|| py.None().into_bound(py));
-        parts.push(agent_encode_field(&val)?);
+        out.push('|');
+        match fd.type_char {
+            b's' => encode_field_typed_str(rec, fd.name, &mut out)?,
+            b'd' => encode_field_typed_int(rec, fd.name, &mut out)?,
+            b'f' => encode_field_typed_float(rec, fd.name, &mut out)?,
+            b'b' => encode_field_typed_bool(rec, fd.name, &mut out)?,
+            _ => encode_field_typed_str(rec, fd.name, &mut out)?,
+        }
     }
 
-    // Meta fields
-    for mf_name in &mf {
-        let val = rec
-            .get_item(mf_name.as_str())?
-            .unwrap_or_else(|| py.None().into_bound(py));
-        parts.push(agent_encode_field(&val)?);
+    // Meta fields (all strings except priority which is int).
+    for mf_name in mf {
+        out.push('|');
+        if mf_name == "priority" {
+            encode_field_typed_int(rec, mf_name, &mut out)?;
+        } else {
+            encode_field_typed_str(rec, mf_name, &mut out)?;
+        }
     }
 
-    Ok(parts.join("|"))
+    Ok(out)
+}
+
+// ---------------------------------------------------------------------------
+// Type-directed field encoders: one downcast per field, no cascade.
+// Each handles None and falls back to the generic path for edge cases.
+// ---------------------------------------------------------------------------
+
+#[inline]
+fn encode_field_typed_str(rec: &Bound<'_, PyDict>, key: &str, out: &mut String) -> PyResult<()> {
+    match rec.get_item(key)? {
+        None => {
+            out.push('N');
+        }
+        Some(val) => {
+            if val.is_none() {
+                out.push('N');
+            } else if let Ok(s) = val.downcast::<PyString>() {
+                agent_encode_str_into(
+                    &s.to_cow().map_err(|e| {
+                        pyo3::exceptions::PyValueError::new_err(format!("Invalid UTF-8: {}", e))
+                    })?,
+                    out,
+                );
+            } else {
+                // Fallback for non-string values in string fields
+                let s = val.str()?.to_string();
+                agent_encode_str_into(&s, out);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[inline]
+fn encode_field_typed_int(rec: &Bound<'_, PyDict>, key: &str, out: &mut String) -> PyResult<()> {
+    match rec.get_item(key)? {
+        None => {
+            out.push('N');
+        }
+        Some(val) => {
+            if val.is_none() {
+                out.push('N');
+            } else if let Ok(i) = val.extract::<i64>() {
+                use std::fmt::Write;
+                let _ = write!(out, "{}", i);
+            } else {
+                // Fallback
+                let s = val.str()?.to_string();
+                out.push_str(&s);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[inline]
+fn encode_field_typed_float(rec: &Bound<'_, PyDict>, key: &str, out: &mut String) -> PyResult<()> {
+    match rec.get_item(key)? {
+        None => {
+            out.push('N');
+        }
+        Some(val) => {
+            if val.is_none() {
+                out.push('N');
+            } else if let Ok(f) = val.extract::<f64>() {
+                if f.is_nan() {
+                    out.push_str("nan");
+                } else if f.is_infinite() {
+                    out.push_str(if f > 0.0 { "inf" } else { "-inf" });
+                } else {
+                    use std::fmt::Write;
+                    let _ = write!(out, "{:?}", f);
+                }
+            } else {
+                let s = val.str()?.to_string();
+                out.push_str(&s);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[inline]
+fn encode_field_typed_bool(rec: &Bound<'_, PyDict>, key: &str, out: &mut String) -> PyResult<()> {
+    match rec.get_item(key)? {
+        None => {
+            out.push('N');
+        }
+        Some(val) => {
+            if val.is_none() {
+                out.push('N');
+            } else if let Ok(b) = val.extract::<bool>() {
+                out.push(if b { 'T' } else { 'F' });
+            } else {
+                let s = val.str()?.to_string();
+                out.push_str(&s);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// PyO3 wrapper: converts Option<Vec<String>> to &[String] and delegates.
+#[pyfunction]
+#[pyo3(signature = (rec, meta_fields=None))]
+fn encode_agent_record_rust(
+    _py: Python<'_>,
+    rec: &Bound<'_, PyDict>,
+    meta_fields: Option<Vec<String>>,
+) -> PyResult<String> {
+    let mf = meta_fields.unwrap_or_default();
+    encode_agent_record_inner(rec, &mf)
 }
 
 // ---------------------------------------------------------------------------
@@ -3615,11 +3799,11 @@ fn encode_agent_payload_rust(
 ) -> PyResult<String> {
     let mf = meta_fields.unwrap_or_default();
 
-    // Encode data rows first so we know count and can compute context_used
+    // Encode data rows using the inner function (no per-record clone of mf).
     let mut data_lines: Vec<String> = Vec::with_capacity(records.len());
     for item in records.iter() {
         let rec: Bound<'_, PyDict> = item.downcast_into()?;
-        data_lines.push(encode_agent_record_rust(py, &rec, Some(mf.clone()))?);
+        data_lines.push(encode_agent_record_inner(&rec, &mf)?);
     }
 
     // Auto payload_id via uuid4
@@ -4621,7 +4805,7 @@ fn chunk_payload_rust<'py>(
         }
     }
 
-    // Estimate token cost per unit
+    // Estimate token cost per unit (no per-record clone of mf).
     let unit_costs: Vec<i64> = units
         .iter()
         .map(|unit| {
@@ -4629,7 +4813,7 @@ fn chunk_payload_rust<'py>(
                 .map(|&idx| {
                     let _item_tmp = records.get_item(idx).unwrap();
                     let d: &Bound<'_, PyDict> = _item_tmp.downcast().unwrap();
-                    let row = encode_agent_record_rust(py, d, Some(mf.clone())).unwrap_or_default();
+                    let row = encode_agent_record_inner(d, &mf).unwrap_or_default();
                     rough_tokens(&row).max(1)
                 })
                 .sum()
