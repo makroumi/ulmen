@@ -263,7 +263,7 @@ See [`SPEC.md`](./SPEC.md) for the complete wire format specification.
 
 ---
 ## Lisence
-Business Source License 1.1. See LICENSE.
+Business Source License 1.1. See [LICENSE](./LICENSE).
 
 Copyright (c) 2026 El Mehdi Makroumi. All rights reserved.
 
